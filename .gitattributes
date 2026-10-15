@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.wav binary
+*.zip binary
+
+res/logo.svg -diff
