@@ -314,6 +314,10 @@ void SettingsWindow::PageGeneral(float& y) {
                    [&](const D2D1_RECT_F& r) {
                      if (ui_.Toggle(MakeId("g.prtsc"), r, &s.usePrintScreen)) Changed();
                    }},
+                  {T(S::UseWinShiftS), T(S::UseWinShiftSDesc), 38.f, 22.f,
+                   [&](const D2D1_RECT_F& r) {
+                     if (ui_.Toggle(MakeId("g.winshifts"), r, &s.useWinShiftS)) Changed();
+                   }},
                   {T(S::DisableSnipKey), T(S::DisableSnipKeyDesc), 38.f, 22.f,
                    [&](const D2D1_RECT_F& r) {
                      if (ui_.Toggle(MakeId("g.snip"), r, &snipKeyOff_)) sys::SetWindowsSnipKeyEnabled(!snipKeyOff_);

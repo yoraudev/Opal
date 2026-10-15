@@ -38,12 +38,13 @@ While capturing, Esc or a right click cancels, Enter captures the current select
 | Shortcut | Action |
 | --- | --- |
 | `PrintScreen` | Show the capture bar |
+| `Win+Shift+S` | Show the capture bar |
 | `Ctrl+Shift+3` | Capture the screen |
 | `Ctrl+Shift+4` | Capture a region (Space switches to window mode) |
 | `Ctrl+Shift+5` | Capture a window |
 | `Ctrl+Shift+6` | Capture an element |
 
-Every shortcut can be changed or cleared on the **Shortcuts** page of the settings. Opal also accepts these arguments, and passes them to the copy that is already running: `--bar`, `--region`, `--window`, `--element`, `--screen`, `--settings`, `--quit`.
+Every shortcut can be changed or cleared on the **Shortcuts** page of the settings. Print Screen and `Win+Shift+S`, which normally open the Snipping Tool, can each be handed back to Windows from the **General** page. Opal also accepts these arguments, and passes them to the copy that is already running: `--bar`, `--region`, `--window`, `--element`, `--screen`, `--settings`, `--quit`.
 
 ## After a capture
 
@@ -66,6 +67,7 @@ The settings window opens from the tray menu. Changes apply right away and are s
 | --- | --- | --- |
 | `General.launchAtStartup` | `1` | Start Opal with Windows |
 | `General.usePrintScreen` | `1` | Print Screen opens Opal instead of the Snipping Tool |
+| `General.useWinShiftS` | `1` | Win+Shift+S opens Opal instead of the Snipping Tool |
 | `General.playSound` | `1` | Play a shutter sound after a capture |
 | `General.shutterSound` | `modern` | `modern` (DSLR) or `vintage` (film camera) |
 | `General.language` | `auto` | `auto` follows Windows; `en` or `tr` |

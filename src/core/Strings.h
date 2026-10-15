@@ -75,6 +75,9 @@ namespace opal {
   X(UsePrintScreen, L"Use the Print Screen key", L"Print Screen tuşunu kullan")                 \
   X(UsePrintScreenDesc, L"Print Screen opens Opal instead of the Snipping Tool.",               \
     L"Print Screen, Ekran Alıntısı yerine Opal'ı açar.")                                        \
+  X(UseWinShiftS, L"Use Win+Shift+S", L"Win+Shift+S kısayolunu kullan")                         \
+  X(UseWinShiftSDesc, L"Win+Shift+S opens Opal instead of the Snipping Tool.",                  \
+    L"Win+Shift+S, Ekran Alıntısı yerine Opal'ı açar.")                                         \
   X(DisableSnipKey, L"Turn off Windows' own Print Screen shortcut",                              \
     L"Windows'un kendi Print Screen kısayolunu kapat")                                          \
   X(DisableSnipKeyDesc, L"Changes the Windows setting “Use the Print screen key to open screen capture”.", \

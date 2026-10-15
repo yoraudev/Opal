@@ -5,6 +5,7 @@
 namespace opal {
 
 constexpr WORD kUnassignedVirtualKey = 0xE8;
+constexpr ULONG_PTR kInjectedTag = 0x4F50414C;
 
 uint32_t CurrentModifiers() {
   uint32_t m = 0;
@@ -55,10 +56,11 @@ void HotkeyManager::ThreadMain() {
   hook_ = nullptr;
 }
 
-void HotkeyManager::SetBindings(const std::array<Hotkey, kActionCount>& keys, bool usePrintScreen) {
+void HotkeyManager::SetBindings(const std::array<Hotkey, kActionCount>& keys, bool usePrintScreen, bool useWinShiftS) {
   std::lock_guard lock(mutex_);
   keys_ = keys;
   usePrintScreen_ = usePrintScreen;
+  useWinShiftS_ = useWinShiftS;
 }
 
 void HotkeyManager::BeginRecording(HWND target, UINT msg) {
@@ -101,9 +103,9 @@ LRESULT HotkeyManager::OnKey(WPARAM wp, const KBDLLHOOKSTRUCT& k) {
   const bool down = wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN;
   const bool up = wp == WM_KEYUP || wp == WM_SYSKEYUP;
   const uint32_t vk = k.vkCode & 0xFF;
-  if (IsModifierKey(vk)) return 0;
+  if (IsModifierKey(vk) || k.dwExtraInfo == kInjectedTag) return 0;
 
-  std::lock_guard lock(mutex_);
+  std::unique_lock lock(mutex_);
   if (captureTarget_ && IsCaptureKey(vk) && !recordTarget_) {
     if (up) swallowedDown_[vk] = false;
     PostMessageW(captureTarget_, captureMsg_, vk, LPARAM(CurrentModifiers()) | (up ? kKeyUpFlag : 0));
@@ -129,20 +131,27 @@ LRESULT HotkeyManager::OnKey(WPARAM wp, const KBDLLHOOKSTRUCT& k) {
     const Hotkey& hk = keys_[size_t(i)];
     if (!hk.Valid() || hk.vk != vk || hk.mods != mods) continue;
     if (hk.vk == VK_SNAPSHOT && hk.mods == 0 && !usePrintScreen_) continue;
-    if (!swallowedDown_[vk]) {
-      PostMessageW(target_, msg_, WPARAM(i), 0);
-      if (mods & kModWin) {
-        INPUT in[2]{};
-        in[0].type = in[1].type = INPUT_KEYBOARD;
-        in[0].ki.wVk = in[1].ki.wVk = kUnassignedVirtualKey;
-        in[1].ki.dwFlags = KEYEVENTF_KEYUP;
-        SendInput(2, in, sizeof(INPUT));
-      }
-    }
-    swallowedDown_[vk] = true;
-    return 1;
+    return Trigger(lock, i, vk, mods);
   }
+  if (useWinShiftS_ && vk == 'S' && mods == (kModWin | kModShift)) return Trigger(lock, int(Action::Bar), vk, mods);
   return 0;
+}
+
+bool HotkeyManager::Trigger(std::unique_lock<std::mutex>& lock, int action, uint32_t vk, uint32_t mods) {
+  const bool repeat = swallowedDown_[vk];
+  swallowedDown_[vk] = true;
+  if (repeat) return true;
+  PostMessageW(target_, msg_, WPARAM(action), 0);
+  if (mods & kModWin) {
+    lock.unlock();
+    INPUT in[2]{};
+    in[0].type = in[1].type = INPUT_KEYBOARD;
+    in[0].ki.wVk = in[1].ki.wVk = kUnassignedVirtualKey;
+    in[0].ki.dwExtraInfo = in[1].ki.dwExtraInfo = kInjectedTag;
+    in[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(2, in, sizeof(INPUT));
+  }
+  return true;
 }
 
 }

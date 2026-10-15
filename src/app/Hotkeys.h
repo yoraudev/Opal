@@ -16,7 +16,7 @@ class HotkeyManager {
 
   bool Start(HWND target, UINT notifyMsg);
   void Stop();
-  void SetBindings(const std::array<Hotkey, kActionCount>& keys, bool usePrintScreen);
+  void SetBindings(const std::array<Hotkey, kActionCount>& keys, bool usePrintScreen, bool useWinShiftS);
 
   void BeginRecording(HWND target, UINT msg);
   void EndRecording();
@@ -29,6 +29,7 @@ class HotkeyManager {
   static LRESULT CALLBACK HookProc(int code, WPARAM wp, LPARAM lp);
   LRESULT OnKey(WPARAM wp, const KBDLLHOOKSTRUCT& k);
   void ThreadMain();
+  bool Trigger(std::unique_lock<std::mutex>& lock, int action, uint32_t vk, uint32_t mods);
 
   std::thread thread_;
   DWORD threadId_ = 0;
@@ -38,6 +39,7 @@ class HotkeyManager {
   std::mutex mutex_;
   std::array<Hotkey, kActionCount> keys_{};
   bool usePrintScreen_ = true;
+  bool useWinShiftS_ = true;
   HWND recordTarget_ = nullptr;
   UINT recordMsg_ = 0;
   HWND captureTarget_ = nullptr;

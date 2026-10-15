@@ -17,6 +17,7 @@ enum class CaptureMode : int { Screen = 0, Window = 1, Region = 2, Element = 3 }
 struct Settings {
   bool launchAtStartup = true;
   bool usePrintScreen = true;
+  bool useWinShiftS = true;
   bool playSound = true;
   ShutterSound shutterSound = ShutterSound::Modern;
   std::wstring language = L"auto";

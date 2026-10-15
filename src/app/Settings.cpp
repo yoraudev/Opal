@@ -104,6 +104,7 @@ void Settings::Load() {
 
   launchAtStartup = ini.GetBool(L"General", L"launchAtStartup", launchAtStartup);
   usePrintScreen = ini.GetBool(L"General", L"usePrintScreen", usePrintScreen);
+  useWinShiftS = ini.GetBool(L"General", L"useWinShiftS", useWinShiftS);
   playSound = ini.GetBool(L"General", L"playSound", playSound);
   shutterSound = ini.Get(L"General", L"shutterSound") == L"vintage" ? ShutterSound::Vintage : ShutterSound::Modern;
   language = ini.Get(L"General", L"language", language);
@@ -147,6 +148,7 @@ void Settings::Save() const {
   Ini ini;
   ini.SetBool(L"General", L"launchAtStartup", launchAtStartup);
   ini.SetBool(L"General", L"usePrintScreen", usePrintScreen);
+  ini.SetBool(L"General", L"useWinShiftS", useWinShiftS);
   ini.SetBool(L"General", L"playSound", playSound);
   ini.Set(L"General", L"shutterSound", shutterSound == ShutterSound::Vintage ? L"vintage" : L"modern");
   ini.Set(L"General", L"language", language);

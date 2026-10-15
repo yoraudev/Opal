@@ -34,7 +34,7 @@ The code that does not touch windows or the GPU (`Image`, `ImageOps`, `EdgeSnap`
 | UI Automation worker | One per element-mode session | Fetches accessibility trees in a multithreaded COM apartment |
 | Delivery thread | One per capture | Encodes the PNG, writes the file and fills the clipboard |
 
-The hook lives on its own thread so that Windows never removes it for being slow while the UI thread renders or encodes. It matches key presses against the configured shortcuts, swallows matches and posts `Action` indexes to the application window. Print Screen is swallowed before Windows sees it, which is what keeps the Snipping Tool from opening. While a shortcut is being recorded in the settings, every key press goes to the settings window instead. While a capture overlay is up, Esc, Enter, Space, Tab, the arrow keys and 1 to 4 are forwarded to the overlay and swallowed, so they work even when Windows refuses the overlay keyboard focus.
+The hook lives on its own thread so that Windows never removes it for being slow while the UI thread renders or encodes. It matches key presses against the configured shortcuts, swallows matches and posts `Action` indexes to the application window. Print Screen and Win+Shift+S are swallowed before Windows sees them, which is what keeps the Snipping Tool from opening. While a shortcut is being recorded in the settings, every key press goes to the settings window instead. While a capture overlay is up, Esc, Enter, Space, Tab, the arrow keys and 1 to 4 are forwarded to the overlay and swallowed, so they work even when Windows refuses the overlay keyboard focus.
 
 When a shortcut includes the Windows key, the hook sends an unassigned virtual key after it, so that releasing the Windows key does not open the Start menu.
 

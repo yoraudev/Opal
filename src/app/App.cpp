@@ -63,7 +63,7 @@ int App::Run(const std::wstring& args) {
   D2DWindow::SetDestroyedHandler([this](D2DWindow* w) { OnWindowDestroyed(w); });
   tray_.Create(hwnd_, kMsgTray);
   if (!HotkeyManager::Get().Start(hwnd_, kMsgHotkey)) Log(L"Keyboard hook unavailable");
-  HotkeyManager::Get().SetBindings(s.hotkeys, s.usePrintScreen);
+  HotkeyManager::Get().SetBindings(s.hotkeys, s.usePrintScreen, s.useWinShiftS);
   SetTimer(hwnd_, kTrimTimer, 10000, nullptr);
 
   if (s.firstRun) {
@@ -310,7 +310,7 @@ void App::ApplySettings() {
   Settings& s = AppSettings();
   SetLanguage(s.language.c_str());
   Theme::Refresh(s.theme);
-  HotkeyManager::Get().SetBindings(s.hotkeys, s.usePrintScreen);
+  HotkeyManager::Get().SetBindings(s.hotkeys, s.usePrintScreen, s.useWinShiftS);
   if (s.launchAtStartup != sys::IsLaunchAtStartup()) sys::SetLaunchAtStartup(s.launchAtStartup);
   s.Save();
   RefreshAllWindows();
