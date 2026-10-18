@@ -26,8 +26,6 @@ The setup also runs without a window, which is useful for scripts:
 | `Opal-Setup-<version>.exe --silent --launch` | Also starts Opal after installing |
 | `Opal.exe --uninstall --silent` | Uninstalls; add `--remove-data` to delete the settings and logs too |
 
-`Opal-<version>.exe` in the same release is the program on its own. It runs from any folder without installing, and it only starts with Windows if you turn that on in its settings.
-
 To build it yourself:
 
 ```bash
@@ -35,7 +33,7 @@ cmake --preset x64
 cmake --build --preset x64-release
 ```
 
-The program is written to `build/Release/Opal.exe` and the installer, which carries a copy of it, to `build/Release/OpalSetup.exe`. On its first start Opal opens its settings. Run Opal again while it is running to open the settings.
+The program is written to `build/Release/Opal.exe` and the installer, which carries a copy of it, to `build/Release/OpalSetup.exe`. `Opal.exe` also runs on its own from any folder without installing; such a copy only starts with Windows if you turn that on in its settings. On its first start Opal opens its settings. Run Opal again while it is running to open the settings.
 
 ## Capturing
 

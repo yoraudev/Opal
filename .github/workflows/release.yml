@@ -46,7 +46,6 @@ jobs:
         run: |
           mkdir release
           cp build/Release/OpalSetup.exe "release/Opal-Setup-${VERSION}.exe"
-          cp build/Release/Opal.exe "release/Opal-${VERSION}.exe"
         env:
           VERSION: ${{ steps.version.outputs.version }}
 
