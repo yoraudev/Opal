@@ -133,7 +133,7 @@ The app icon is built from `res/logo.svg`. `python tools/make_icon.py --render` 
 
 `cmake --build --preset x64-release --target opal_preview` builds `opal_preview.exe`, which renders every page of the installer in English and Turkish, light and dark, into PNG files without opening a window: `build/Release/opal_preview.exe <folder>`.
 
-Interface strings, in English and Turkish, are in `src/core/Strings.h`. How the pieces fit together is described in [docs/architecture.md](docs/architecture.md). Every push to `main` publishes a new release.
+Interface strings, in English and Turkish, are in `src/core/Strings.h`. How the pieces fit together is described in [docs/architecture.md](docs/architecture.md). Work is committed to the `dev` branch. `main` is protected and only changes through pull requests from `dev`; every merge into `main` publishes a new release.
 
 ## License
 
