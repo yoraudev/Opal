@@ -24,7 +24,6 @@ constexpr float kMargin = 28.f;
 constexpr double kMinWorkSeconds = 0.9;
 constexpr UINT kMsgStep = WM_APP + 0x240;
 constexpr UINT kMsgFinished = WM_APP + 0x241;
-constexpr UINT_PTR kResultTimer = 0x0FB2;
 
 std::wstring Format(S fmt, const std::wstring& a, const std::wstring& b = {}) {
   wchar_t buf[1024];
@@ -167,21 +166,11 @@ LRESULT SetupWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp, bool& handled
       Invalidate();
       handled = true;
       return 0;
-    case kMsgFinished: {
+    case kMsgFinished:
       result_.reset(reinterpret_cast<Result*>(lp));
-      const double wait = std::max(0.0, kMinWorkSeconds - (Now() - workStart_));
-      SetTimer(hwnd(), kResultTimer, UINT(wait * 1000.0) + 1, nullptr);
+      ApplyResult();
       handled = true;
       return 0;
-    }
-    case WM_TIMER:
-      if (wp == kResultTimer) {
-        KillTimer(hwnd(), kResultTimer);
-        ApplyResult();
-        handled = true;
-        return 0;
-      }
-      break;
     case WM_CLOSE:
       if (page_ == Page::Working) {
         handled = true;
@@ -498,9 +487,9 @@ void SetupWindow::PickFolder() {
 void SetupWindow::StartWork() {
   page_ = Page::Working;
   step_ = setup::Step::Stopping;
-  workStart_ = Now();
+  const double start = Now();
   HWND h = hwnd();
-  worker_ = std::thread([h, kind = kind_, options = options_, inst = installed_, removeData = removeData_] {
+  worker_ = std::thread([h, start, kind = kind_, options = options_, inst = installed_, removeData = removeData_] {
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     auto progress = [h](setup::Step s) { PostMessageW(h, kMsgStep, WPARAM(s), 0); };
     auto* r = new Result;
@@ -510,6 +499,8 @@ void SetupWindow::StartWork() {
       r->ok = setup::Install(options, progress, &r->error, &r->wasRunning, h);
     }
     CoUninitialize();
+    const double wait = kMinWorkSeconds - (Now() - start);
+    if (wait > 0) Sleep(DWORD(wait * 1000.0));
     PostMessageW(h, kMsgFinished, 0, reinterpret_cast<LPARAM>(r));
   });
   Invalidate();

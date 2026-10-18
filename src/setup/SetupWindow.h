@@ -71,7 +71,6 @@ class SetupWindow : public D2DWindow {
   bool launch_ = true;
   bool removeData_ = false;
   int exitCode_ = 2;
-  double workStart_ = 0;
   std::unique_ptr<Result> result_;
   std::thread worker_;
   ComPtr<ID2D1Bitmap1> logo_;
