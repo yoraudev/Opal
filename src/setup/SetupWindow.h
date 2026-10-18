@@ -44,6 +44,7 @@ class SetupWindow : public D2DWindow {
     std::wstring error;
   };
   std::wstring CaptureKey() const;
+  const std::wstring& SpaceText();
 
   void EnsureLogo(ID2D1DeviceContext5* dc);
   void DrawHeader(ID2D1DeviceContext5* dc);
@@ -75,6 +76,8 @@ class SetupWindow : public D2DWindow {
   std::thread worker_;
   ComPtr<ID2D1Bitmap1> logo_;
   std::vector<D2D1_RECT_F> hitRects_;
+  std::wstring spaceDir_;
+  std::wstring spaceText_;
 };
 
 int RunSetup(const std::wstring& args);

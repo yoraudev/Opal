@@ -113,9 +113,11 @@ Starting with Windows is not a setting in the file. The `Opal` value under `HKCU
 Installing or updating:
 
 1. Every running Opal, installed or not, is asked to quit through the `--quit` command it already understands, and is terminated if it has not exited after five seconds.
-2. An existing `Opal.exe` in the target folder is renamed to `Opal.exe.old`, which works even if the file is still in use, and the running setup copies itself into place. The installed Opal deletes a leftover `Opal.exe.old` when it starts.
+2. An existing `Opal.exe` in the target folder is renamed to `Opal.exe.old`, which works even if the file is still in use, and the running setup copies itself into place. The installed Opal deletes a leftover `Opal.exe.old` when it starts. Before copying, the setup creates and deletes a temporary file in the nearest existing folder of the target. If that is refused, only this step runs in a second copy of the setup started with `--copy-to <folder>` through `ShellExecuteEx` with the `runas` verb, so Windows shows its permission prompt; everything else, including starting Opal afterwards, stays in the unelevated setup. Declining the prompt ends the setup with an explanation.
 3. The uninstall entry, the Start menu and desktop shortcuts and the startup entry are written according to the choices. On an update the choices start from the current state, and the folder cannot be changed.
 4. When the window closes, Opal is started from the installed folder if requested, in the background for updates.
+
+When the installed folder cannot be written without administrator rights, `--uninstall` restarts itself elevated the same way before doing anything, so the files can be deleted.
 
 Uninstalling removes the startup entry if it points to the installed copy, the shortcuts that point to it, the uninstall entry and optionally the settings and logs. Only `Opal.exe` and `Opal.exe.old` are deleted from the folder, and the folder itself only when it is empty, so a folder chosen by hand never loses other files. A running executable cannot delete itself, so when the uninstaller runs from the installed folder it starts a hidden `cmd.exe` that waits two seconds after the uninstaller exits, then deletes the remaining files and empty folders.
 
@@ -125,4 +127,6 @@ Uninstalling removes the startup entry if it points to the installed copy, the s
 
 Installing an update downloads the asset into `%TEMP%\Opal-Update`, only over HTTPS, to a `.part` file that is renamed once its size matches the size the API reported, then starts it with `--silent`. From there the update is an ordinary silent setup: it closes this Opal, replaces it and starts the new version in the background, which deletes `%TEMP%\Opal-Update` when it starts.
 
-The rules that need no Windows calls, such as comparing versions, appending `Opal` to a chosen folder, reading the program path out of a startup command and parsing arguments, are in `InstallRules`, and reading a release from the GitHub API is in `ReleaseInfo`; both are covered by the unit tests.
+The options page shows the size of the setup's own `Opal.exe` and the free space on the target's drive, read with `GetDiskFreeSpaceEx` from the nearest existing folder.
+
+The rules that need no Windows calls, such as comparing versions, formatting sizes, naming the drive of a path, appending `Opal` to a chosen folder, reading the program path out of a startup command and parsing arguments, are in `InstallRules`, and reading a release from the GitHub API is in `ReleaseInfo`; both are covered by the unit tests.

@@ -155,8 +155,6 @@ namespace opal {
     L"Opal sistem tepsisinde bekler, böylece Print Screen hemen çalışır.")                      \
   X(SetupStartMenu, L"Add to the Start menu", L"Başlat menüsüne ekle")                          \
   X(SetupDesktop, L"Add a desktop shortcut", L"Masaüstüne kısayol ekle")                        \
-  X(SetupPerUser, L"Installs for your account only. No administrator rights needed.",           \
-    L"Yalnızca sizin hesabınıza kurulur, yönetici izni gerekmez.")                              \
   X(SetupInstall, L"Install", L"Kur")                                                           \
   X(SetupUpdate, L"Update", L"Güncelle")                                                        \
   X(SetupReinstall, L"Reinstall", L"Yeniden kur")                                               \
@@ -176,8 +174,10 @@ namespace opal {
   X(SetupFailed, L"Setup could not finish", L"Kurulum tamamlanamadı")                           \
   X(SetupErrorRunning, L"Opal is still running and could not be closed. Quit it from the tray and try again.", \
     L"Opal hâlâ çalışıyor ve kapatılamadı. Sistem tepsisinden çıkıp yeniden deneyin.")          \
-  X(SetupErrorFolder, L"The folder %s could not be created (error %lu).",                       \
-    L"%s klasörü oluşturulamadı (hata %lu).")                                                   \
+  X(SetupErrorDeclined, L"Windows did not get permission to write to %s. Allow the request or choose another folder.", \
+    L"Windows %s konumuna yazma izni alamadı. İzin isteğini onaylayın ya da başka bir klasör seçin.") \
+  X(SetupSpace, L"Needs %1$s · %2$s free on %3$s", L"%1$s gerekli · %3$s sürücüsünde %2$s boş")         \
+  X(SetupSpaceNeeded, L"Needs %s", L"%s gerekli")                                              \
   X(SetupErrorCopy, L"Opal.exe could not be copied to %s (error %lu).",                         \
     L"Opal.exe, %s konumuna kopyalanamadı (hata %lu).")                                         \
   X(UninstallTitle, L"Uninstall Opal", L"Opal'ı kaldır")                                        \

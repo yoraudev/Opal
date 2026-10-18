@@ -1,5 +1,7 @@
 #include "setup/InstallRules.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cwctype>
 #include <vector>
 
@@ -113,6 +115,37 @@ bool HasArg(std::wstring_view args, std::wstring_view name) {
     if (IEquals(t, name)) return true;
   }
   return false;
+}
+
+std::wstring FormatSize(uint64_t bytes, wchar_t decimalPoint) {
+  static constexpr const wchar_t* kUnits[] = {L"MB", L"GB", L"TB"};
+  if (bytes < 1024ull * 1024) return std::to_wstring(std::max<uint64_t>(1, (bytes + 512) / 1024)) + L" KB";
+  double v = double(bytes) / (1024.0 * 1024.0);
+  int unit = 0;
+  while (v >= 1024.0 && unit < 2) {
+    v /= 1024.0;
+    ++unit;
+  }
+  std::wstring out;
+  if (v < 100.0) {
+    const long long tenths = std::llround(v * 10.0);
+    out = std::to_wstring(tenths / 10) + decimalPoint + std::to_wstring(tenths % 10);
+  } else {
+    out = std::to_wstring(std::llround(v));
+  }
+  return out + L" " + kUnits[unit];
+}
+
+std::wstring DriveOf(std::wstring_view path) {
+  const std::wstring p = CleanPath(path);
+  if (p.size() >= 2 && p[1] == L':') return std::wstring(1, wchar_t(std::towupper(p[0]))) + L":";
+  if (p.size() > 2 && p[0] == L'\\' && p[1] == L'\\') {
+    const size_t server = p.find(L'\\', 2);
+    if (server == std::wstring::npos) return p;
+    const size_t share = p.find(L'\\', server + 1);
+    return share == std::wstring::npos ? p : p.substr(0, share);
+  }
+  return {};
 }
 
 std::optional<std::wstring> ArgValue(std::wstring_view args, std::wstring_view name) {
