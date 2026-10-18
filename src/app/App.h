@@ -8,6 +8,7 @@
 
 #include "app/Settings.h"
 #include "app/Tray.h"
+#include "app/Updater.h"
 #include "core/Image.h"
 #include "overlay/CaptureSession.h"
 
@@ -38,6 +39,8 @@ class App {
   App() = default;
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
   LRESULT Handle(UINT msg, WPARAM wp, LPARAM lp);
+  void SyncLaunchAtStartup();
+  void OnUpdateEvent(Updater::Event e);
   void OnSessionDone();
   void HandleResult(CaptureResult&& r);
   void Adopt(std::unique_ptr<D2DWindow> w);
@@ -53,6 +56,7 @@ class App {
   std::vector<std::unique_ptr<D2DWindow>> windows_;
   ThumbnailWindow* thumbnail_ = nullptr;
   SettingsWindow* settings_ = nullptr;
+  bool trimmed_ = false;
 };
 
 }

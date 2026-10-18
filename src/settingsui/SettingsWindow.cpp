@@ -13,6 +13,7 @@
 #include "app/Settings.h"
 #include "app/Sound.h"
 #include "app/SystemIntegration.h"
+#include "app/Updater.h"
 #include "core/Strings.h"
 #include "Version.h"
 
@@ -337,6 +338,14 @@ void SettingsWindow::PageGeneral(float& y) {
                      }
                    }},
               });
+  if (Updater::Get().Supported()) {
+    y = Card(y, {{T(S::CheckForUpdates), T(S::CheckForUpdatesDesc), 38.f, 22.f, [&](const D2D1_RECT_F& r) {
+                    if (ui_.Toggle(MakeId("g.updates"), r, &s.checkForUpdates)) {
+                      Changed();
+                      if (s.checkForUpdates) Updater::Get().CheckIfDue();
+                    }
+                  }}});
+  }
   y = Card(y, {
                   {T(S::Appearance), L"", 240.f, 26.f,
                    [&](const D2D1_RECT_F& r) {
@@ -486,6 +495,43 @@ void SettingsWindow::PageOutput(float& y) {
               });
 }
 
+void SettingsWindow::UpdateRow(float y) {
+  const Theme& t = Theme::Current();
+  Painter& p = ui_.p;
+  Updater& updater = Updater::Get();
+  std::wstring status;
+  const wchar_t* action = nullptr;
+  bool primary = false;
+  switch (updater.GetState()) {
+    case Updater::State::Idle: status = T(S::UpdateIdle); action = T(S::UpdateCheckNow); break;
+    case Updater::State::Checking: status = T(S::UpdateChecking); break;
+    case Updater::State::UpToDate: status = T(S::UpdateUpToDate); action = T(S::UpdateCheckNow); break;
+    case Updater::State::CheckFailed: status = T(S::UpdateCheckFailed); action = T(S::UpdateCheckNow); break;
+    case Updater::State::Downloading: status = T(S::UpdateDownloading); break;
+    case Updater::State::Installing: status = T(S::UpdateInstalling); break;
+    case Updater::State::Available:
+    case Updater::State::DownloadFailed: {
+      wchar_t buf[128];
+      swprintf_s(buf, T(updater.GetState() == Updater::State::Available ? S::UpdateAvailable : S::UpdateDownloadFailed),
+                 updater.Version().c_str());
+      status = buf;
+      action = T(S::UpdateNow);
+      primary = true;
+      break;
+    }
+  }
+  const float sw = p.Measure(status, 12.5f).width;
+  const float bw = action ? p.Measure(action, 13.f, FontWeight::Medium).width + 28.f : 0.f;
+  const float total = sw + (action ? 12.f + bw : 0.f);
+  const float x = contentLeft_ + (contentWidth_ - total) / 2;
+  p.Text(status, RX(x, y, sw + 2.f, 28.f), 12.5f, primary ? t.text : t.textSecondary);
+  if (action && ui_.Button(MakeId("a.update"), RX(x + sw + 12.f, y, bw, 28.f), action, primary)) {
+    if (primary) updater.Install();
+    else updater.Check();
+    Invalidate();
+  }
+}
+
 void SettingsWindow::PageAbout(ID2D1DeviceContext5* dc, float& y) {
   const Theme& t = Theme::Current();
   Painter& p = ui_.p;
@@ -498,6 +544,10 @@ void SettingsWindow::PageAbout(ID2D1DeviceContext5* dc, float& y) {
   p.Text(std::wstring(T(S::Version)) + L" " + OPAL_VERSION_WTEXT, RX(contentLeft_, y, contentWidth_, 18.f), 12.f,
          t.textSecondary, FontWeight::Regular, HAlign::Center);
   y += 26.f;
+  if (Updater::Get().Supported()) {
+    UpdateRow(y);
+    y += 40.f;
+  }
   p.Text(T(S::Tagline), RX(contentLeft_, y, contentWidth_, 20.f), 14.f, t.text, FontWeight::Medium, HAlign::Center);
   y += 30.f;
   const float bw = std::min(contentWidth_, 440.f);

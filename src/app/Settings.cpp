@@ -3,6 +3,8 @@
 #include <windows.h>
 #include <shlobj.h>
 
+#include <cwchar>
+#include <string>
 #include <vector>
 
 #include "app/Ini.h"
@@ -102,9 +104,11 @@ void Settings::Load() {
   Ini ini;
   ini.Parse(text);
 
-  launchAtStartup = ini.GetBool(L"General", L"launchAtStartup", launchAtStartup);
   usePrintScreen = ini.GetBool(L"General", L"usePrintScreen", usePrintScreen);
   useWinShiftS = ini.GetBool(L"General", L"useWinShiftS", useWinShiftS);
+  checkForUpdates = ini.GetBool(L"General", L"checkForUpdates", checkForUpdates);
+  lastUpdateCheck = std::wcstoll(ini.Get(L"Updates", L"lastCheck", L"0").c_str(), nullptr, 10);
+  notifiedVersion = ini.Get(L"Updates", L"notified", L"");
   playSound = ini.GetBool(L"General", L"playSound", playSound);
   shutterSound = ini.Get(L"General", L"shutterSound") == L"vintage" ? ShutterSound::Vintage : ShutterSound::Modern;
   language = ini.Get(L"General", L"language", language);
@@ -146,9 +150,11 @@ void Settings::Load() {
 
 void Settings::Save() const {
   Ini ini;
-  ini.SetBool(L"General", L"launchAtStartup", launchAtStartup);
   ini.SetBool(L"General", L"usePrintScreen", usePrintScreen);
   ini.SetBool(L"General", L"useWinShiftS", useWinShiftS);
+  ini.SetBool(L"General", L"checkForUpdates", checkForUpdates);
+  ini.Set(L"Updates", L"lastCheck", std::to_wstring(lastUpdateCheck));
+  ini.Set(L"Updates", L"notified", notifiedVersion);
   ini.SetBool(L"General", L"playSound", playSound);
   ini.Set(L"General", L"shutterSound", shutterSound == ShutterSound::Vintage ? L"vintage" : L"modern");
   ini.Set(L"General", L"language", language);

@@ -6,7 +6,8 @@ namespace opal::sys {
 std::wstring ExePath();
 
 bool IsLaunchAtStartup();
-void SetLaunchAtStartup(bool enable);
+std::wstring LaunchAtStartupTarget();
+void SetLaunchAtStartup(bool enable, const std::wstring& exe = ExePath());
 
 bool IsWindowsSnipKeyEnabled();
 void SetWindowsSnipKeyEnabled(bool enable);

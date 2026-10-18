@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 
+#include "core/Image.h"
 #include "render/Gpu.h"
 #include "ui/Ui.h"
 
@@ -23,6 +24,7 @@ class D2DWindow {
   void Invalidate();
   void RenderNow();
   void Close();
+  bool Snapshot(SIZE sizePx, UINT dpi, Image* out);
   static double Now();
   static bool MicaSupported();
 
@@ -39,6 +41,18 @@ class D2DWindow {
     bool mica = false;
   };
   bool Create(const CreateParams& params);
+
+  class ModalScope {
+   public:
+    explicit ModalScope(D2DWindow* w);
+    ~ModalScope();
+    ModalScope(const ModalScope&) = delete;
+    ModalScope& operator=(const ModalScope&) = delete;
+
+   private:
+    D2DWindow* w_;
+  };
+  bool InModal() const { return modal_ > 0; }
 
   virtual void OnRender(ID2D1DeviceContext5* dc) = 0;
   virtual bool WantsFrame() { return false; }
@@ -79,6 +93,8 @@ class D2DWindow {
   unsigned gen_ = 0;
   bool frameRequested_ = false;
   bool tracking_ = false;
+  int modal_ = 0;
+  bool closePending_ = false;
   ComPtr<IDXGISwapChain1> swap_;
   ComPtr<IDCompositionTarget> target_;
   ComPtr<IDCompositionVisual> visual_;

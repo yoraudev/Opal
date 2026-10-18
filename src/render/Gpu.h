@@ -21,6 +21,7 @@ class Gpu {
 
   bool Ensure();
   void HandleDeviceLost();
+  void Shutdown();
   unsigned Generation() const { return generation_; }
 
   ID3D11Device* D3D() const { return d3d_.Get(); }

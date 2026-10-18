@@ -10,6 +10,8 @@
 #include "capture/CornerRadius.h"
 #include "capture/EdgeSnap.h"
 #include "render/ImageOps.h"
+#include "setup/InstallRules.h"
+#include "setup/ReleaseInfo.h"
 
 using namespace opal;
 
@@ -221,6 +223,102 @@ TEST(PixelateAndBlur) {
   BlurRegion(b, b.Bounds(), 4.f);
   CHECK(ChR(b.At(8, 8)) > 40 && ChR(b.At(8, 8)) < 215);
   CHECK(ChA(b.At(8, 8)) == 255);
+}
+
+TEST(VersionOrder) {
+  using setup::CompareVersions;
+  CHECK(CompareVersions(L"0.1.0", L"0.1.0") == 0);
+  CHECK(CompareVersions(L"0.1.0", L"0.1.1") < 0);
+  CHECK(CompareVersions(L"0.2.0", L"0.1.9") > 0);
+  CHECK(CompareVersions(L"0.1.10", L"0.1.9") > 0);
+  CHECK(CompareVersions(L"1.0", L"1.0.0") == 0);
+  CHECK(CompareVersions(L"", L"0.0.1") < 0);
+}
+
+TEST(InstallDirNormalization) {
+  using setup::NormalizeInstallDir;
+  CHECK(NormalizeInstallDir(L"C:\\Users\\me\\AppData\\Local\\Programs") == L"C:\\Users\\me\\AppData\\Local\\Programs\\Opal");
+  CHECK(NormalizeInstallDir(L"D:\\Tools\\Opal\\") == L"D:\\Tools\\Opal");
+  CHECK(NormalizeInstallDir(L"D:\\tools\\opal") == L"D:\\tools\\opal");
+  CHECK(NormalizeInstallDir(L"D:\\") == L"D:\\Opal");
+  CHECK(NormalizeInstallDir(L"E:/Apps/") == L"E:\\Apps\\Opal");
+  CHECK(NormalizeInstallDir(L"  ").empty());
+}
+
+TEST(PathsAndCommands) {
+  using namespace setup;
+  CHECK(SamePath(L"C:\\Apps\\Opal\\", L"c:/apps/opal"));
+  CHECK(!SamePath(L"C:\\Apps\\Opal", L"C:\\Apps\\Opal2"));
+  CHECK(!SamePath(L"", L""));
+  CHECK(StartupCommand(L"C:\\A B\\Opal.exe") == L"\"C:\\A B\\Opal.exe\" --background");
+  CHECK(CommandExe(L"\"C:\\A B\\Opal.exe\" --background") == L"C:\\A B\\Opal.exe");
+  CHECK(CommandExe(L"C:\\A B\\Opal.exe --background") == L"C:\\A B\\Opal.exe");
+  CHECK(CommandExe(L"C:\\Tools\\opal") == L"C:\\Tools\\opal");
+  CHECK(CommandExe(L"   ").empty());
+}
+
+TEST(StartupApprovedState) {
+  const uint8_t enabled[12] = {0x02};
+  const uint8_t disabled[12] = {0x03};
+  const uint8_t disabledByPolicy[12] = {0x07};
+  CHECK(setup::StartupApproved(enabled, sizeof(enabled)));
+  CHECK(!setup::StartupApproved(disabled, sizeof(disabled)));
+  CHECK(!setup::StartupApproved(disabledByPolicy, sizeof(disabledByPolicy)));
+  CHECK(setup::StartupApproved(nullptr, 0));
+}
+
+TEST(SetupArguments) {
+  using namespace setup;
+  const std::wstring args = L"--setup --silent --dir \"D:\\My Apps\" --launch";
+  CHECK(HasArg(args, L"--silent"));
+  CHECK(HasArg(args, L"--LAUNCH"));
+  CHECK(!HasArg(args, L"--sil"));
+  CHECK(ArgValue(args, L"--dir").value_or(L"") == L"D:\\My Apps");
+  CHECK(ArgValue(L"--dir=E:\\Opal", L"--dir").value_or(L"") == L"E:\\Opal");
+  CHECK(!ArgValue(L"--setup --dir", L"--dir").has_value());
+  CHECK(!HasArg(L"--settings", L"--setup"));
+}
+
+TEST(ReleaseParsing) {
+  const char* json = R"({
+    "tag_name": "v0.2.3", "draft": false, "prerelease": false, "name": "Café 📷",
+    "author": {"login": "github-actions[bot]", "id": 41898282},
+    "assets": [
+      {"name": "Opal-0.2.3.exe", "size": 840192,
+       "browser_download_url": "https://github.com/yoraudev/Opal/releases/download/v0.2.3/Opal-0.2.3.exe"},
+      {"name": "Opal-Setup-0.2.3.exe", "size": 1.0875e6, "label": null,
+       "browser_download_url": "https:\/\/github.com\/yoraudev\/Opal\/releases\/download\/v0.2.3\/Opal-Setup-0.2.3.exe"}
+    ]
+  })";
+  auto r = setup::ParseRelease(json);
+  CHECK(r.has_value());
+  if (!r) return;
+  CHECK(r->version == L"0.2.3");
+  CHECK(!r->draft && !r->prerelease);
+  CHECK(r->assets.size() == 2);
+  const setup::ReleaseAsset* a = setup::FindSetupAsset(*r);
+  CHECK(a != nullptr);
+  if (a) {
+    CHECK(a->size == 1087500);
+    CHECK(a->url == L"https://github.com/yoraudev/Opal/releases/download/v0.2.3/Opal-Setup-0.2.3.exe");
+  }
+  CHECK(!setup::ParseRelease("{\"tag_name\": \"v1.0\"").has_value());
+  CHECK(!setup::ParseRelease("[1, 2]").has_value());
+  CHECK(!setup::ParseRelease("{\"tag_name\": \"latest\"}").has_value());
+  auto noSetup = setup::ParseRelease(R"({"tag_name": "v0.1.1", "assets": [{"name": "Opal-0.1.1.exe", "size": 5,
+    "browser_download_url": "https://github.com/yoraudev/Opal/releases/download/v0.1.1/Opal-0.1.1.exe"}]})");
+  CHECK(noSetup && setup::FindSetupAsset(*noSetup) == nullptr);
+}
+
+TEST(TrustedDownloads) {
+  CHECK(setup::IsTrustedDownload(L"https://github.com/yoraudev/Opal/releases/download/v1.0.0/Opal-Setup-1.0.0.exe"));
+  CHECK(!setup::IsTrustedDownload(L"http://github.com/yoraudev/Opal/releases/download/v1.0.0/Opal-Setup-1.0.0.exe"));
+  CHECK(!setup::IsTrustedDownload(L"https://github.com/someone/Opal/releases/download/v1/Opal-Setup-1.exe"));
+  CHECK(!setup::IsTrustedDownload(L"https://github.com/yoraudev/Opal/releases/download/../../x.exe"));
+  CHECK(!setup::IsTrustedDownload(L"https://github.com/yoraudev/Opal/releases/download/"));
+  CHECK(setup::VersionFromTag(L"v0.1.12") == L"0.1.12");
+  CHECK(setup::VersionFromTag(L"0.3") == L"0.3");
+  CHECK(setup::VersionFromTag(L"v1.0-beta").empty());
 }
 
 TEST(StraightAlpha) {

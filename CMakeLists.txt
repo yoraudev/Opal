@@ -37,11 +37,12 @@ add_library(opal_core STATIC
   src/capture/EdgeSnap.cpp
   src/capture/CornerRadius.cpp
   src/app/Hotkey.cpp
-  src/app/Ini.cpp)
+  src/app/Ini.cpp
+  src/setup/InstallRules.cpp
+  src/setup/ReleaseInfo.cpp)
 target_include_directories(opal_core PUBLIC src)
 
-add_executable(Opal WIN32
-  src/main.cpp
+add_library(opal_app STATIC
   src/core/Log.cpp
   src/core/Strings.cpp
   src/app/App.cpp
@@ -50,6 +51,7 @@ add_executable(Opal WIN32
   src/app/SystemIntegration.cpp
   src/app/Tray.cpp
   src/app/Sound.cpp
+  src/app/Updater.cpp
   src/render/Gpu.cpp
   src/render/D2DWindow.cpp
   src/ui/Theme.cpp
@@ -69,12 +71,25 @@ add_executable(Opal WIN32
   src/editor/Annotations.cpp
   src/editor/EditorWindow.cpp
   src/settingsui/SettingsWindow.cpp
-  res/opal.rc)
-target_link_libraries(Opal PRIVATE opal_core
+  src/setup/Installer.cpp
+  src/setup/SetupWindow.cpp)
+target_link_libraries(opal_app PUBLIC opal_core
   d3d11 dxgi d2d1 dwrite dcomp windowscodecs dwmapi shcore uxtheme
-  comctl32 shlwapi winmm ole32 oleaut32 windowsapp dxguid dbghelp)
+  comctl32 shlwapi winmm ole32 oleaut32 windowsapp dxguid dbghelp wtsapi32 winhttp)
+
+add_executable(Opal WIN32 src/main.cpp res/opal.rc)
+target_link_libraries(Opal PRIVATE opal_app)
 set_target_properties(Opal PROPERTIES OUTPUT_NAME "Opal")
 target_link_options(Opal PRIVATE /MANIFEST:NO)
+
+add_executable(OpalSetup WIN32 src/stub/SetupStub.cpp res/setup.rc)
+target_compile_definitions(OpalSetup PRIVATE "OPAL_PAYLOAD=\"$<TARGET_FILE:Opal>\"")
+target_link_options(OpalSetup PRIVATE /MANIFEST:NO)
+add_dependencies(OpalSetup Opal)
+
+add_executable(opal_preview EXCLUDE_FROM_ALL tools/preview.cpp res/opal.rc)
+target_link_libraries(opal_preview PRIVATE opal_app)
+target_link_options(opal_preview PRIVATE /MANIFEST:NO)
 
 enable_testing()
 add_executable(opal_tests tests/tests.cpp)

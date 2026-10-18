@@ -1,11 +1,17 @@
 #include "app/Hotkeys.h"
 
+#include <algorithm>
+
 #include "core/Log.h"
 
 namespace opal {
 
 constexpr WORD kUnassignedVirtualKey = 0xE8;
 constexpr ULONG_PTR kInjectedTag = 0x4F50414C;
+constexpr UINT kMsgRebind = WM_APP + 1;
+constexpr UINT kMsgRefreshHook = WM_APP + 2;
+constexpr UINT kHookRefreshMs = 60000;
+constexpr ULONGLONG kDuplicateMs = 500;
 
 uint32_t CurrentModifiers() {
   uint32_t m = 0;
@@ -29,8 +35,11 @@ bool HotkeyManager::Start(HWND target, UINT notifyMsg) {
     threadId_ = GetCurrentThreadId();
     MSG m;
     PeekMessageW(&m, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-    hook_ = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, GetModuleHandleW(nullptr), 0);
-    if (!hook_) Log(L"SetWindowsHookEx failed: %lu", GetLastError());
+    THREAD_POWER_THROTTLING_STATE throttling{THREAD_POWER_THROTTLING_CURRENT_VERSION,
+                                             THREAD_POWER_THROTTLING_EXECUTION_SPEED, 0};
+    SetThreadInformation(GetCurrentThread(), ThreadPowerThrottling, &throttling, sizeof(throttling));
+    InstallHook();
+    SetTimer(nullptr, 0, kHookRefreshMs, nullptr);
     SetEvent(ready);
     ThreadMain();
   });
@@ -45,22 +54,108 @@ void HotkeyManager::Stop() {
   thread_.join();
 }
 
+void HotkeyManager::Refresh() {
+  if (const DWORD id = threadId_) PostThreadMessageW(id, kMsgRefreshHook, 0, 0);
+}
+
 void HotkeyManager::ThreadMain() {
   SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
   MSG m;
   while (GetMessageW(&m, nullptr, 0, 0) > 0) {
+    if (!m.hwnd) {
+      if (m.message == WM_HOTKEY) {
+        OnFallback(int(m.wParam));
+        continue;
+      }
+      if (m.message == WM_TIMER || m.message == kMsgRefreshHook) {
+        InstallHook();
+        continue;
+      }
+      if (m.message == kMsgRebind) {
+        RegisterFallbacks();
+        continue;
+      }
+    }
     TranslateMessage(&m);
     DispatchMessageW(&m);
   }
+  UnregisterFallbacks();
   if (hook_) UnhookWindowsHookEx(hook_);
   hook_ = nullptr;
 }
 
+bool HotkeyManager::InstallHook() {
+  HHOOK fresh = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, GetModuleHandleW(nullptr), 0);
+  if (!fresh) {
+    Log(L"SetWindowsHookEx failed: %lu", GetLastError());
+    return hook_ != nullptr;
+  }
+  if (hook_) UnhookWindowsHookEx(hook_);
+  hook_ = fresh;
+  return true;
+}
+
+void HotkeyManager::RegisterFallbacks() {
+  UnregisterFallbacks();
+  std::array<Hotkey, kActionCount> keys;
+  bool usePrintScreen = true, useWinShiftS = true;
+  {
+    std::lock_guard lock(mutex_);
+    keys = keys_;
+    usePrintScreen = usePrintScreen_;
+    useWinShiftS = useWinShiftS_;
+  }
+  auto add = [this](int id, const Hotkey& hk) {
+    UINT mods = MOD_NOREPEAT;
+    if (hk.mods & kModCtrl) mods |= MOD_CONTROL;
+    if (hk.mods & kModAlt) mods |= MOD_ALT;
+    if (hk.mods & kModShift) mods |= MOD_SHIFT;
+    if (hk.mods & kModWin) mods |= MOD_WIN;
+    if (RegisterHotKey(nullptr, id, mods, hk.vk)) {
+      registered_[size_t(id)] = true;
+    } else {
+      Log(L"No fallback for %s: %lu", FormatHotkey(hk).c_str(), GetLastError());
+    }
+  };
+  for (int i = 0; i < kActionCount; ++i) {
+    const Hotkey& hk = keys[size_t(i)];
+    if (!hk.Valid() || (hk.vk == VK_SNAPSHOT && hk.mods == 0 && !usePrintScreen)) continue;
+    add(i, hk);
+  }
+  const Hotkey winShiftS{kModWin | kModShift, 'S'};
+  if (useWinShiftS && std::find(keys.begin(), keys.end(), winShiftS) == keys.end()) add(kActionCount, winShiftS);
+}
+
+void HotkeyManager::UnregisterFallbacks() {
+  for (size_t id = 0; id < registered_.size(); ++id) {
+    if (registered_[id]) UnregisterHotKey(nullptr, int(id));
+    registered_[id] = false;
+  }
+}
+
+void HotkeyManager::OnFallback(int id) {
+  if (id < 0 || id > kActionCount) return;
+  const int action = id == kActionCount ? int(Action::Bar) : id;
+  InstallHook();
+  {
+    std::lock_guard lock(mutex_);
+    if (recordTarget_) return;
+    const ULONGLONG now = GetTickCount64();
+    if (now - lastTrigger_[size_t(action)] < kDuplicateMs) return;
+    lastTrigger_[size_t(action)] = now;
+  }
+  Log(L"Shortcut %d reached Opal without the keyboard hook", id);
+  PostMessageW(target_, msg_, WPARAM(action), 0);
+}
+
 void HotkeyManager::SetBindings(const std::array<Hotkey, kActionCount>& keys, bool usePrintScreen, bool useWinShiftS) {
-  std::lock_guard lock(mutex_);
-  keys_ = keys;
-  usePrintScreen_ = usePrintScreen;
-  useWinShiftS_ = useWinShiftS;
+  {
+    std::lock_guard lock(mutex_);
+    keys_ = keys;
+    usePrintScreen_ = usePrintScreen;
+    useWinShiftS_ = useWinShiftS;
+  }
+  if (const DWORD id = threadId_) PostThreadMessageW(id, kMsgRebind, 0, 0);
 }
 
 void HotkeyManager::BeginRecording(HWND target, UINT msg) {
@@ -141,6 +236,7 @@ bool HotkeyManager::Trigger(std::unique_lock<std::mutex>& lock, int action, uint
   const bool repeat = swallowedDown_[vk];
   swallowedDown_[vk] = true;
   if (repeat) return true;
+  lastTrigger_[size_t(action)] = GetTickCount64();
   PostMessageW(target_, msg_, WPARAM(action), 0);
   if (mods & kModWin) {
     lock.unlock();

@@ -4,14 +4,16 @@
 
 - **Language:** C++20
 - **Platform:** Windows 10 and 11, x64 desktop application (Win32, Per-Monitor-V2 DPI aware)
-- **Build:** CMake 3.28+ with presets, MSVC from Visual Studio 2026, static C runtime, one `Opal.exe`
+- **Build:** CMake 3.28+ with presets, MSVC from Visual Studio 2026, static C runtime, one `Opal.exe` and the `OpalSetup.exe` installer that embeds it
 - **Rendering:** Direct3D 11, Direct2D, DirectWrite and DirectComposition flip swap chains with per-pixel alpha
 - **UI:** an immediate-mode widget toolkit in `src/ui`, no UI framework
 - **Capture:** GDI `BitBlt` for the frozen desktop, Windows.Graphics.Capture through C++/WinRT for window content, UI Automation for element bounds
 - **Imaging:** WIC for PNG encoding and decoding, CPU image operations in `src/render/ImageOps.cpp`
 - **Input:** a `WH_KEYBOARD_LL` hook on a dedicated thread
-- **Settings:** an INI file read and written by `src/app/Ini.cpp`
-- **Tests:** a self-contained test runner in `tests/tests.cpp`, run through CTest
+- **Updates:** WinHTTP against the GitHub releases API, parsed by `src/setup/ReleaseInfo.cpp`
+- **Settings:** an INI file read and written by `src/app/Ini.cpp`; starting with Windows lives in the `HKCU` Run key
+- **Installer:** a per-user installer built into `Opal.exe` (`src/setup`) with its own window, started by the `OpalSetup.exe` stub (`src/stub`); no installer framework
+- **Tests:** a self-contained test runner in `tests/tests.cpp`, run through CTest; `tools/preview.cpp` renders the installer pages to PNG files for visual checks
 - **Assets:** the app icon is generated from `res/logo.svg` by `tools/make_icon.py` (Python with Pillow, Edge or Chrome to render the SVG)
 - **CI / releases:** GitHub Actions
 

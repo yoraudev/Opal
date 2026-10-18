@@ -3,6 +3,8 @@
 #include <dwmapi.h>
 #include <windowsx.h>
 
+#include <cstring>
+
 #include "core/Log.h"
 
 namespace opal {
@@ -141,7 +143,57 @@ void D2DWindow::AfterFrame(std::function<void()> fn) {
 }
 
 void D2DWindow::Close() {
-  if (hwnd_) PostMessageW(hwnd_, kMsgCloseSelf, 0, 0);
+  if (!hwnd_) return;
+  if (modal_ > 0) {
+    closePending_ = true;
+    return;
+  }
+  PostMessageW(hwnd_, kMsgCloseSelf, 0, 0);
+}
+
+D2DWindow::ModalScope::ModalScope(D2DWindow* w) : w_(w) { ++w_->modal_; }
+
+D2DWindow::ModalScope::~ModalScope() {
+  if (--w_->modal_ > 0 || !w_->closePending_) return;
+  w_->closePending_ = false;
+  if (w_->hwnd_) PostMessageW(w_->hwnd_, kMsgCloseSelf, 0, 0);
+}
+
+bool D2DWindow::Snapshot(SIZE sizePx, UINT dpi, Image* out) {
+  ComPtr<ID2D1DeviceContext5> dc = Gpu::Get().CreateContext();
+  if (!dc || sizePx.cx <= 0 || sizePx.cy <= 0) return false;
+  const D2D1_PIXEL_FORMAT fmt = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
+  const D2D1_SIZE_U size = D2D1::SizeU(UINT(sizePx.cx), UINT(sizePx.cy));
+  ComPtr<ID2D1Bitmap1> target, readback;
+  if (FAILED(dc->CreateBitmap(size, nullptr, 0, D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET, fmt), &target)) ||
+      FAILED(dc->CreateBitmap(size, nullptr, 0,
+                              D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW, fmt),
+                              &readback))) {
+    return false;
+  }
+  const SIZE oldSize = size_;
+  const UINT oldDpi = dpi_;
+  size_ = sizePx;
+  dpi_ = dpi;
+  dc->SetTarget(target.Get());
+  dc->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+  dc->BeginDraw();
+  dc->SetTransform(D2D1::Matrix3x2F::Identity());
+  dc->Clear(ClearColor());
+  OnRender(dc.Get());
+  const HRESULT hr = dc->EndDraw();
+  input_.ClearEdges();
+  size_ = oldSize;
+  dpi_ = oldDpi;
+  if (FAILED(hr) || FAILED(readback->CopyFromBitmap(nullptr, target.Get(), nullptr))) return false;
+  D2D1_MAPPED_RECT map{};
+  if (FAILED(readback->Map(D2D1_MAP_OPTIONS_READ, &map))) return false;
+  *out = Image(sizePx.cx, sizePx.cy);
+  for (int y = 0; y < sizePx.cy; ++y) {
+    std::memcpy(out->Row(y), map.bits + size_t(y) * map.pitch, size_t(sizePx.cx) * 4);
+  }
+  readback->Unmap();
+  return true;
 }
 
 bool D2DWindow::EnsureTarget() {
@@ -155,9 +207,11 @@ bool D2DWindow::EnsureTarget() {
   if (size_.cx <= 0 || size_.cy <= 0) return false;
   if (!swap_) {
     ComPtr<IDXGIAdapter> adapter;
-    gpu.Dxgi()->GetAdapter(&adapter);
     ComPtr<IDXGIFactory2> factory;
-    adapter->GetParent(IID_PPV_ARGS(&factory));
+    if (FAILED(gpu.Dxgi()->GetAdapter(&adapter)) || FAILED(adapter->GetParent(IID_PPV_ARGS(&factory)))) {
+      Log(L"DXGI factory unavailable");
+      return false;
+    }
     DXGI_SWAP_CHAIN_DESC1 desc{};
     desc.Width = UINT(size_.cx);
     desc.Height = UINT(size_.cy);
@@ -183,7 +237,11 @@ bool D2DWindow::EnsureTarget() {
       ReleaseTarget();
       return false;
     }
-    gpu.D2DDevice()->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, dc_.GetAddressOf());
+    if (FAILED(gpu.D2DDevice()->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, dc_.GetAddressOf()))) {
+      Log(L"D2D device context failed");
+      ReleaseTarget();
+      return false;
+    }
   }
   if (!backBitmap_) {
     ComPtr<IDXGISurface> surface;
@@ -242,7 +300,7 @@ void D2DWindow::BeginUiFrame(ID2D1DeviceContext5* dc) {
 void D2DWindow::EndUiFrame(ID2D1DeviceContext5* dc) {
   if (ui_.End()) frameRequested_ = true;
   const double wake = ui_.WakeIn();
-  if (wake > 0) SetTimer(hwnd_, kWakeTimer, UINT(wake * 1000.0) + 10, nullptr);
+  if (wake > 0 && hwnd_) SetTimer(hwnd_, kWakeTimer, UINT(wake * 1000.0) + 10, nullptr);
   dc->SetTransform(D2D1::Matrix3x2F::Identity());
 }
 
@@ -343,6 +401,11 @@ LRESULT D2DWindow::WndProc(UINT msg, WPARAM wp, LPARAM lp) {
 
   switch (msg) {
     case kMsgCloseSelf:
+    case WM_CLOSE:
+      if (modal_ > 0) {
+        closePending_ = true;
+        return 0;
+      }
       DestroyWindow(hwnd_);
       return 0;
     case kMsgAfterFrame: {

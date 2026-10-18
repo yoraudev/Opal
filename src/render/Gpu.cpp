@@ -110,6 +110,13 @@ void Gpu::ReleaseDevice() {
   ++generation_;
 }
 
+void Gpu::Shutdown() {
+  ReleaseDevice();
+  d2dFactory_.Reset();
+  dwrite_.Reset();
+  wic_.Reset();
+}
+
 ComPtr<ID2D1DeviceContext5> Gpu::CreateContext() {
   ComPtr<ID2D1DeviceContext5> dc;
   if (!Ensure()) return dc;

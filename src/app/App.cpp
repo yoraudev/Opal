@@ -2,6 +2,7 @@
 
 #include <shellapi.h>
 #include <wrl/client.h>
+#include <wtsapi32.h>
 
 #include <algorithm>
 #include <thread>
@@ -9,6 +10,7 @@
 #include "app/Hotkeys.h"
 #include "app/Sound.h"
 #include "app/SystemIntegration.h"
+#include "app/Updater.h"
 #include "core/Log.h"
 #include "core/Strings.h"
 #include "editor/EditorWindow.h"
@@ -16,8 +18,11 @@
 #include "render/D2DWindow.h"
 #include "render/Gpu.h"
 #include "settingsui/SettingsWindow.h"
+#include "setup/InstallRules.h"
+#include "setup/Installer.h"
 #include "thumbnail/ThumbnailWindow.h"
 #include "ui/Theme.h"
+#include "Version.h"
 
 namespace opal {
 namespace {
@@ -26,7 +31,17 @@ constexpr UINT kMsgHotkey = WM_APP + 1;
 constexpr UINT kMsgTray = WM_APP + 2;
 constexpr UINT kMsgSessionDone = WM_APP + 3;
 constexpr UINT kMsgDelivered = WM_APP + 4;
+constexpr UINT kMsgUpdate = WM_APP + 5;
 constexpr UINT_PTR kTrimTimer = 1;
+constexpr UINT_PTR kUpdateTimer = 2;
+constexpr UINT kFirstUpdateCheckMs = 60 * 1000;
+constexpr UINT kUpdateTimerMs = 60 * 60 * 1000;
+
+std::wstring Formatted(S fmt, const std::wstring& arg) {
+  wchar_t buf[256];
+  swprintf_s(buf, T(fmt), arg.c_str());
+  return buf;
+}
 
 struct Delivery {
   ThumbnailWindow* thumbnail;
@@ -62,17 +77,18 @@ int App::Run(const std::wstring& args) {
 
   D2DWindow::SetDestroyedHandler([this](D2DWindow* w) { OnWindowDestroyed(w); });
   tray_.Create(hwnd_, kMsgTray);
+  WTSRegisterSessionNotification(hwnd_, NOTIFY_FOR_THIS_SESSION);
   if (!HotkeyManager::Get().Start(hwnd_, kMsgHotkey)) Log(L"Keyboard hook unavailable");
   HotkeyManager::Get().SetBindings(s.hotkeys, s.usePrintScreen, s.useWinShiftS);
   SetTimer(hwnd_, kTrimTimer, 10000, nullptr);
+  Updater::Get().Init(hwnd_, kMsgUpdate);
+  if (Updater::Get().Supported()) SetTimer(hwnd_, kUpdateTimer, kFirstUpdateCheckMs, nullptr);
 
-  if (s.firstRun) {
-    if (s.launchAtStartup) sys::SetLaunchAtStartup(true);
-    s.Save();
-  } else if (s.launchAtStartup != sys::IsLaunchAtStartup()) {
-    sys::SetLaunchAtStartup(s.launchAtStartup);
-  }
-  Log(L"Opal started (first run %d)", int(s.firstRun));
+  setup::CleanUpAfterUpdate();
+  SyncLaunchAtStartup();
+  if (s.firstRun) s.Save();
+  Log(L"Opal %s started from %s (first run %d, installed %d, startup %d)", OPAL_VERSION_WTEXT, sys::ExePath().c_str(),
+      int(s.firstRun), int(setup::IsInstalledCopy()), int(s.launchAtStartup));
   HandleCommandLine(args, false);
   if (s.firstRun && args.find(L"--") == std::wstring::npos) OpenSettings();
 
@@ -82,10 +98,37 @@ int App::Run(const std::wstring& args) {
     DispatchMessageW(&msg);
   }
   HotkeyManager::Get().Stop();
+  WTSUnRegisterSessionNotification(hwnd_);
   session_.reset();
   windows_.clear();
   tray_.Destroy();
   return 0;
+}
+
+void App::OnUpdateEvent(Updater::Event e) {
+  Settings& s = AppSettings();
+  const Updater& updater = Updater::Get();
+  if (e == Updater::Event::Available && s.notifiedVersion != updater.Version()) {
+    tray_.Notify(Formatted(S::UpdateBalloonTitle, updater.Version()), T(S::UpdateBalloonText));
+    s.notifiedVersion = updater.Version();
+    s.Save();
+  } else if (e == Updater::Event::Failed) {
+    tray_.Notify(L"Opal", T(S::UpdateFailedBalloon));
+  }
+  RefreshAllWindows();
+}
+
+void App::SyncLaunchAtStartup() {
+  if (sys::IsLaunchAtStartup()) {
+    const std::wstring target = sys::LaunchAtStartupTarget();
+    const std::wstring self = sys::ExePath();
+    if (!setup::SamePath(target, self) &&
+        (setup::IsInstalledCopy() || GetFileAttributesW(target.c_str()) == INVALID_FILE_ATTRIBUTES)) {
+      Log(L"Startup entry pointed to %s, moving it to this copy", target.c_str());
+      sys::SetLaunchAtStartup(true, self);
+    }
+  }
+  AppSettings().launchAtStartup = sys::IsLaunchAtStartup();
 }
 
 void App::HandleCommandLine(const std::wstring& args, bool fromOtherInstance) {
@@ -126,10 +169,22 @@ LRESULT App::Handle(UINT msg, WPARAM wp, LPARAM lp) {
       return 0;
     case kMsgTray:
       switch (LOWORD(lp)) {
+        case NIN_BALLOONUSERCLICK:
+          Updater::Get().Install();
+          RefreshAllWindows();
+          break;
         case NIN_SELECT:
         case NIN_KEYSELECT:
         case WM_CONTEXTMENU: {
-          const UINT cmd = tray_.ShowMenu();
+          Updater& updater = Updater::Get();
+          std::wstring updateLabel;
+          if (updater.GetState() == Updater::State::Available || updater.GetState() == Updater::State::DownloadFailed) {
+            updateLabel = Formatted(S::TrayUpdate, updater.Version());
+          } else if (updater.GetState() == Updater::State::Downloading ||
+                     updater.GetState() == Updater::State::Installing) {
+            updateLabel = T(S::TrayUpdating);
+          }
+          const UINT cmd = tray_.ShowMenu(updateLabel, !updater.Busy());
           switch (cmd) {
             case kCmdBar: StartCapture(Action::Bar); break;
             case kCmdScreen: StartCapture(Action::Screen); break;
@@ -139,6 +194,10 @@ LRESULT App::Handle(UINT msg, WPARAM wp, LPARAM lp) {
             case kCmdOpenFolder: sys::OpenFolder(AppSettings().ResolvedFolder()); break;
             case kCmdSettings: OpenSettings(); break;
             case kCmdQuit: Quit(); break;
+            case kCmdUpdate:
+              updater.Install();
+              RefreshAllWindows();
+              break;
             default: break;
           }
           break;
@@ -149,6 +208,9 @@ LRESULT App::Handle(UINT msg, WPARAM wp, LPARAM lp) {
       return 0;
     case kMsgSessionDone:
       OnSessionDone();
+      return 0;
+    case kMsgUpdate:
+      OnUpdateEvent(Updater::Get().OnMessage(wp, lp));
       return 0;
     case kMsgDelivered: {
       std::unique_ptr<Delivery> d(reinterpret_cast<Delivery*>(lp));
@@ -170,10 +232,29 @@ LRESULT App::Handle(UINT msg, WPARAM wp, LPARAM lp) {
         RefreshAllWindows();
       }
       return 0;
+    case WM_WTSSESSION_CHANGE:
+      if (wp == WTS_SESSION_UNLOCK || wp == WTS_CONSOLE_CONNECT || wp == WTS_REMOTE_CONNECT) {
+        HotkeyManager::Get().Refresh();
+      }
+      return 0;
+    case WM_POWERBROADCAST:
+      if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) HotkeyManager::Get().Refresh();
+      return TRUE;
+    case WM_DISPLAYCHANGE:
+      HotkeyManager::Get().Refresh();
+      break;
     case WM_TIMER:
-      if (wp == kTrimTimer) {
+      if (wp == kUpdateTimer) {
+        SetTimer(hwnd_, kUpdateTimer, kUpdateTimerMs, nullptr);
+        Updater::Get().CheckIfDue();
+      } else if (wp == kTrimTimer) {
         Gpu::Get().TrimIfIdle(20000);
-        if (!session_ && windows_.empty()) SetProcessWorkingSetSize(GetCurrentProcess(), SIZE_T(-1), SIZE_T(-1));
+        if (session_ || !windows_.empty() || Gpu::Get().D3D()) {
+          trimmed_ = false;
+        } else if (!trimmed_) {
+          SetProcessWorkingSetSize(GetCurrentProcess(), SIZE_T(-1), SIZE_T(-1));
+          trimmed_ = true;
+        }
       }
       return 0;
     case WM_DESTROY:
@@ -323,10 +404,11 @@ void App::RefreshAllWindows() {
 void App::Adopt(std::unique_ptr<D2DWindow> w) { windows_.push_back(std::move(w)); }
 
 void App::OnWindowDestroyed(D2DWindow* w) {
+  auto it = std::find_if(windows_.begin(), windows_.end(), [w](const auto& p) { return p.get() == w; });
+  if (it == windows_.end() || (*it)->Alive()) return;
   if (w == thumbnail_) thumbnail_ = nullptr;
   if (w == settings_) settings_ = nullptr;
-  auto it = std::find_if(windows_.begin(), windows_.end(), [w](const auto& p) { return p.get() == w; });
-  if (it != windows_.end()) windows_.erase(it);
+  windows_.erase(it);
 }
 
 }

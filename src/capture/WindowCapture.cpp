@@ -9,6 +9,8 @@
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
 
 #include <cstring>
+#include <memory>
+#include <mutex>
 
 #include "core/Log.h"
 #include "render/Gpu.h"
@@ -18,6 +20,12 @@ namespace {
 
 namespace wgc = winrt::Windows::Graphics::Capture;
 namespace wdx = winrt::Windows::Graphics::DirectX;
+
+struct FrameWait {
+  std::mutex mutex;
+  wgc::Direct3D11CaptureFrame frame{nullptr};
+  winrt::handle arrived{CreateEventW(nullptr, TRUE, FALSE, nullptr)};
+};
 
 bool CopyTextureToImage(ID3D11Texture2D* tex, Image* out) {
   Gpu& gpu = Gpu::Get();
@@ -79,20 +87,25 @@ bool CaptureWindowContent(const WindowInfo& w, Image* out) {
       }
     }
 
-    HANDLE arrived = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    wgc::Direct3D11CaptureFrame frame{nullptr};
-    auto token = pool.FrameArrived([&](const wgc::Direct3D11CaptureFramePool& sender, auto&&) {
+    auto wait = std::make_shared<FrameWait>();
+    auto token = pool.FrameArrived([wait](const wgc::Direct3D11CaptureFramePool& sender, auto&&) {
       auto f = sender.TryGetNextFrame();
-      if (f && !frame) {
-        frame = f;
-        SetEvent(arrived);
+      std::lock_guard lock(wait->mutex);
+      if (f && !wait->frame) {
+        wait->frame = f;
+        SetEvent(wait->arrived.get());
       }
     });
     session.StartCapture();
-    const DWORD wait = WaitForSingleObject(arrived, 1500);
+    const DWORD waited = WaitForSingleObject(wait->arrived.get(), 1500);
     pool.FrameArrived(token);
-    CloseHandle(arrived);
-    if (wait != WAIT_OBJECT_0 || !frame) {
+    wgc::Direct3D11CaptureFrame frame{nullptr};
+    {
+      std::lock_guard lock(wait->mutex);
+      frame = std::move(wait->frame);
+      wait->frame = nullptr;
+    }
+    if (waited != WAIT_OBJECT_0 || !frame) {
       session.Close();
       pool.Close();
       Log(L"WGC: no frame for window %p", w.hwnd);

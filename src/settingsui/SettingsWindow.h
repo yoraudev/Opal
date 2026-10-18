@@ -39,6 +39,7 @@ class SettingsWindow : public D2DWindow {
   void PageCapture(float& y);
   void PageOutput(float& y);
   void PageAbout(ID2D1DeviceContext5* dc, float& y);
+  void UpdateRow(float y);
   void Changed();
   void StartRecording(int action);
   void StopRecording();

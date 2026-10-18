@@ -17,6 +17,7 @@ class HotkeyManager {
   bool Start(HWND target, UINT notifyMsg);
   void Stop();
   void SetBindings(const std::array<Hotkey, kActionCount>& keys, bool usePrintScreen, bool useWinShiftS);
+  void Refresh();
 
   void BeginRecording(HWND target, UINT msg);
   void EndRecording();
@@ -29,10 +30,14 @@ class HotkeyManager {
   static LRESULT CALLBACK HookProc(int code, WPARAM wp, LPARAM lp);
   LRESULT OnKey(WPARAM wp, const KBDLLHOOKSTRUCT& k);
   void ThreadMain();
+  bool InstallHook();
+  void RegisterFallbacks();
+  void UnregisterFallbacks();
+  void OnFallback(int id);
   bool Trigger(std::unique_lock<std::mutex>& lock, int action, uint32_t vk, uint32_t mods);
 
   std::thread thread_;
-  DWORD threadId_ = 0;
+  std::atomic<DWORD> threadId_ = 0;
   HHOOK hook_ = nullptr;
   HWND target_ = nullptr;
   UINT msg_ = 0;
@@ -45,6 +50,8 @@ class HotkeyManager {
   HWND captureTarget_ = nullptr;
   UINT captureMsg_ = 0;
   std::array<bool, 256> swallowedDown_{};
+  std::array<ULONGLONG, kActionCount> lastTrigger_{};
+  std::array<bool, kActionCount + 1> registered_{};
 };
 
 uint32_t CurrentModifiers();

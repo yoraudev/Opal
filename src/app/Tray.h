@@ -1,6 +1,8 @@
 #pragma once
 #include <windows.h>
 
+#include <string>
+
 namespace opal {
 
 enum TrayCommand : UINT {
@@ -12,6 +14,7 @@ enum TrayCommand : UINT {
   kCmdOpenFolder,
   kCmdSettings,
   kCmdQuit,
+  kCmdUpdate,
 };
 
 class Tray {
@@ -19,7 +22,8 @@ class Tray {
   bool Create(HWND owner, UINT callbackMsg);
   void Destroy();
   void Recreate();
-  UINT ShowMenu();
+  UINT ShowMenu(const std::wstring& updateLabel, bool updateEnabled);
+  void Notify(const std::wstring& title, const std::wstring& text);
 
  private:
   HWND owner_ = nullptr;

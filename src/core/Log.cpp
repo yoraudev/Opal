@@ -17,7 +17,7 @@ LARGE_INTEGER g_start{}, g_freq{};
 
 }
 
-void LogInit() {
+void LogInit(const wchar_t* name) {
   QueryPerformanceFrequency(&g_freq);
   QueryPerformanceCounter(&g_start);
   PWSTR base = nullptr;
@@ -25,8 +25,13 @@ void LogInit() {
   std::wstring dir = std::wstring(base) + L"\\Opal";
   CoTaskMemFree(base);
   CreateDirectoryW(dir.c_str(), nullptr);
-  g_file = CreateFileW((dir + L"\\opal.log").c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                       CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  const std::wstring path = dir + L"\\" + name + L".log";
+  MoveFileExW(path.c_str(), (dir + L"\\" + name + L".prev.log").c_str(), MOVEFILE_REPLACE_EXISTING);
+  g_file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, CREATE_ALWAYS,
+                       FILE_ATTRIBUTE_NORMAL, nullptr);
+  SYSTEMTIME t;
+  GetLocalTime(&t);
+  Log(L"Log opened %04d-%02d-%02d %02d:%02d:%02d", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
 }
 
 void Log(const wchar_t* fmt, ...) {

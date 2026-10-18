@@ -2,7 +2,7 @@
 
 namespace opal {
 
-void LogInit();
+void LogInit(const wchar_t* name = L"opal");
 void Log(const wchar_t* fmt, ...);
 
 }

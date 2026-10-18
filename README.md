@@ -4,21 +4,38 @@
 
 macOS-style screenshots for Windows. Press Print Screen, pick a window and get a clean rounded-corner shot with a soft shadow, or pick a card or button inside an app and let Opal find its exact edges and corner radius.
 
-It is a single `Opal.exe` of under 1 MB that waits in the tray.
+It is a single `Opal.exe` of under 1 MB that waits in the tray, with an installer that keeps it up to date.
 
 <p align="center"><img src="docs/images/settings.png" width="560" alt="Opal"></p>
 <p align="center"><img src="docs/images/markup.webp" width="820" alt="Opal"></p>
 
 ## Install
 
-Download `Opal-<version>.exe` from the latest release and run it, or build it yourself:
+Download `Opal-Setup-<version>.exe` from the latest release and run it. Opal installs for your account only, without administrator rights, into `%LOCALAPPDATA%\Programs\Opal` or a folder you choose, adds itself to the Start menu and starts when you sign in; each of these can be switched off before installing. Opal then appears in Windows' installed apps, where it can be uninstalled.
+
+The installed Opal looks for a new release on GitHub once a day. When one is available, a notification appears and the tray menu gets an **Update to …** item; choosing it, clicking the notification or pressing **Update now** on the **About** page of the settings downloads the new setup and runs it without a window, which restarts Opal on the new version. The check can be turned off on the **General** page. Copies that run without installing never check.
+
+To update by hand, run the setup of a newer version. It finds the installed copy, closes it if it is running, replaces it in the same folder and starts it again; settings, shortcuts and the startup choice stay as they are. Running the same version again offers to reinstall or uninstall, and an older version warns before replacing a newer one.
+
+The setup also runs without a window, which is useful for scripts:
+
+| Command | Effect |
+| --- | --- |
+| `Opal-Setup-<version>.exe --silent` | Installs or updates with the current choices, and restarts Opal if it was running |
+| `Opal-Setup-<version>.exe --silent --dir "D:\Tools"` | Installs into `D:\Tools\Opal` when Opal is not installed yet |
+| `Opal-Setup-<version>.exe --silent --launch` | Also starts Opal after installing |
+| `Opal.exe --uninstall --silent` | Uninstalls; add `--remove-data` to delete the settings and logs too |
+
+`Opal-<version>.exe` in the same release is the program on its own. It runs from any folder without installing, and it only starts with Windows if you turn that on in its settings.
+
+To build it yourself:
 
 ```bash
 cmake --preset x64
 cmake --build --preset x64-release
 ```
 
-The program is written to `build/Release/Opal.exe`. On its first start Opal adds itself to the programs that start with Windows and opens its settings; both can be changed later. Run the file again while Opal is running to open the settings.
+The program is written to `build/Release/Opal.exe` and the installer, which carries a copy of it, to `build/Release/OpalSetup.exe`. On its first start Opal opens its settings. Run Opal again while it is running to open the settings.
 
 ## Capturing
 
@@ -65,9 +82,9 @@ The settings window opens from the tray menu. Changes apply right away and are s
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `General.launchAtStartup` | `1` | Start Opal with Windows |
 | `General.usePrintScreen` | `1` | Print Screen opens Opal instead of the Snipping Tool |
 | `General.useWinShiftS` | `1` | Win+Shift+S opens Opal instead of the Snipping Tool |
+| `General.checkForUpdates` | `1` | Look for a new release once a day (installed copies only) |
 | `General.playSound` | `1` | Play a shutter sound after a capture |
 | `General.shutterSound` | `modern` | `modern` (DSLR) or `vintage` (film camera) |
 | `General.language` | `auto` | `auto` follows Windows; `en` or `tr` |
@@ -86,18 +103,22 @@ The settings window opens from the tray menu. Changes apply right away and are s
 | `Output.file` | `1` | Save captures as files |
 | `Output.folder` | empty | Folder for saved captures; empty means `Pictures\Opal` |
 | `Output.prefix` | `Opal` | Start of the file name, followed by the date and time |
+| `Updates.lastCheck`, `Updates.notified` | | When updates were last checked, as seconds since 1970, and the last version announced in a notification; kept by Opal |
+
+Whether Opal starts with Windows is not stored in this file. The **Launch at startup** switch on the **General** page writes Opal's entry in the Windows startup list, the same one Task Manager shows, so turning Opal off in Task Manager also turns the switch off.
 
 The **General** page also has a switch for Windows' own "Use the Print screen key to open screen capture" setting. Opal takes the key first either way; the switch only changes that Windows setting.
 
 ## Good to know
 
-- When a program running as administrator has the keyboard focus, Windows does not pass key presses to programs without administrator rights, so Opal's shortcuts do nothing until focus moves elsewhere or Opal itself runs as administrator.
+- Opal reads its shortcuts with a low-level keyboard hook, which Windows silently removes when a hook answers too slowly, for example while the system is busy loading a game. Opal therefore reinstalls the hook every minute, after the PC wakes up or is unlocked and when the display changes. Every shortcut is also registered with Windows as a regular hotkey, so if the hook misses a key press, that hotkey still opens the capture and Opal reinstalls the hook at once. Win+Shift+S belongs to Windows and cannot be registered this way, so it relies on the hook alone.
+- When a program running as administrator has the keyboard focus, Windows does not pass key presses to the hook of a program without administrator rights. Shortcuts that could be registered as hotkeys keep working there; Win+Shift+S does nothing until focus moves elsewhere or Opal itself runs as administrator.
 - Element mode reads the app's accessibility tree, which takes from a few milliseconds to about a second for large web pages. Until it is ready, dragging around the element with edge snapping still works.
 - Apps that draw everything themselves and expose no accessibility tree, such as many games, only offer the whole window as an element.
 - If a window cannot be captured on its own, Opal falls back to the frozen screen pixels inside the window's bounds.
 - The thumbnail and the timer are left out of screenshots and screen sharing. Set the environment variable `OPAL_SHOW_IN_CAPTURES` to `1` before starting Opal to keep them visible, for example when testing with screen recording tools.
 - In the tray Opal uses about 14 MB of memory. The graphics device is created for a capture and released after 20 idle seconds.
-- Opal writes a log to `%LOCALAPPDATA%\Opal\opal.log`, and after a crash a `crash.dmp` next to it.
+- Opal writes a log to `%LOCALAPPDATA%\Opal\opal.log` and keeps the previous run's log as `opal.prev.log`, so the log of a run that ended in a crash survives the next start. After a crash a `crash.dmp` is written next to them. The installer logs to `setup.log` in the same folder.
 - The shutter sounds are [DSLR Shutter fast 006](https://freesound.org/s/539136/) by ristooooo1 and [Werra](https://freesound.org/s/409093/) by hmilleo, both released under CC0.
 
 ## Development
@@ -111,6 +132,8 @@ ctest --preset x64-debug
 Building needs Visual Studio 2026 with the C++ desktop workload and the Windows SDK 10.0.22621 or newer. The version number comes from `project()` in `CMakeLists.txt` and can be overridden with `-DOPAL_VERSION=1.2.3`.
 
 The app icon is built from `res/logo.svg`. `python tools/make_icon.py --render` renders the SVG with Edge or Chrome into `res/logo.png` and builds `res/opal.ico` and `res/opal.png` from it; without `--render` it reuses the existing `res/logo.png`. It needs Pillow.
+
+`cmake --build --preset x64-release --target opal_preview` builds `opal_preview.exe`, which renders every page of the installer in English and Turkish, light and dark, into PNG files without opening a window: `build/Release/opal_preview.exe <folder>`.
 
 Interface strings, in English and Turkish, are in `src/core/Strings.h`. How the pieces fit together is described in [docs/architecture.md](docs/architecture.md). Every push to `main` publishes a new release.
 

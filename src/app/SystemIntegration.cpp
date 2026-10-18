@@ -4,6 +4,10 @@
 #include <shellapi.h>
 #include <shlobj.h>
 
+#include <cstdint>
+
+#include "setup/InstallRules.h"
+
 namespace opal::sys {
 namespace {
 
@@ -11,6 +15,7 @@ constexpr int kAppModeForceDark = 2;
 constexpr int kAppModeForceLight = 3;
 constexpr wchar_t kRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 constexpr wchar_t kRunValue[] = L"Opal";
+constexpr wchar_t kApprovedKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
 
 }
 
@@ -20,23 +25,36 @@ std::wstring ExePath() {
   return std::wstring(buf, n);
 }
 
-bool IsLaunchAtStartup() {
+std::wstring LaunchAtStartupTarget() {
   wchar_t buf[MAX_PATH * 2];
   DWORD size = sizeof(buf);
-  return RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_REG_SZ, nullptr, buf, &size) == ERROR_SUCCESS;
+  if (RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_REG_SZ, nullptr, buf, &size) != ERROR_SUCCESS) return {};
+  return setup::CommandExe(buf);
 }
 
-void SetLaunchAtStartup(bool enable) {
-  HKEY key;
-  if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
-  if (enable) {
-    std::wstring cmd = L"\"" + ExePath() + L"\" --background";
-    RegSetValueExW(key, kRunValue, 0, REG_SZ, reinterpret_cast<const BYTE*>(cmd.c_str()),
-                   DWORD((cmd.size() + 1) * sizeof(wchar_t)));
-  } else {
-    RegDeleteValueW(key, kRunValue);
+bool IsLaunchAtStartup() {
+  if (LaunchAtStartupTarget().empty()) return false;
+  uint8_t state[16] = {};
+  DWORD size = sizeof(state);
+  if (RegGetValueW(HKEY_CURRENT_USER, kApprovedKey, kRunValue, RRF_RT_REG_BINARY, nullptr, state, &size) != ERROR_SUCCESS) {
+    return true;
   }
-  RegCloseKey(key);
+  return setup::StartupApproved(state, size);
+}
+
+void SetLaunchAtStartup(bool enable, const std::wstring& exe) {
+  HKEY key;
+  if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_SET_VALUE, &key) == ERROR_SUCCESS) {
+    if (enable) {
+      const std::wstring cmd = setup::StartupCommand(exe);
+      RegSetValueExW(key, kRunValue, 0, REG_SZ, reinterpret_cast<const BYTE*>(cmd.c_str()),
+                     DWORD((cmd.size() + 1) * sizeof(wchar_t)));
+    } else {
+      RegDeleteValueW(key, kRunValue);
+    }
+    RegCloseKey(key);
+  }
+  RegDeleteKeyValueW(HKEY_CURRENT_USER, kApprovedKey, kRunValue);
 }
 
 bool IsWindowsSnipKeyEnabled() {

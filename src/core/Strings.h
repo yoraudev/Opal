@@ -135,7 +135,80 @@ namespace opal {
   X(Seconds, L"s", L" sn")                                                                      \
   X(CaptureFailed, L"Couldn't capture that.", L"Bu yakalanamadı.")                              \
   X(SaveFailed, L"Couldn't save the file.", L"Dosya kaydedilemedi.")                            \
-  X(AlreadyRunning, L"Opal is running in the tray.", L"Opal sistem tepsisinde çalışıyor.")
+  X(AlreadyRunning, L"Opal is running in the tray.", L"Opal sistem tepsisinde çalışıyor.")     \
+  X(Cancel, L"Cancel", L"İptal")                                                                \
+  X(SetupTitleInstall, L"Install Opal", L"Opal'ı kur")                                          \
+  X(SetupTitleUpdate, L"Update Opal", L"Opal'ı güncelle")                                       \
+  X(SetupTitleReinstall, L"Opal is already installed", L"Opal zaten kurulu")                    \
+  X(SetupTitleDowngrade, L"A newer Opal is installed", L"Daha yeni bir Opal kurulu")            \
+  X(SetupLineInstall, L"Version %s · macOS-style screenshots for Windows",                      \
+    L"Sürüm %s · Windows için macOS tarzı ekran görüntüleri")                                   \
+  X(SetupLineUpdate, L"Version %s is installed and will be updated to %s. Your settings stay as they are.", \
+    L"Kurulu olan %s sürümü %s sürümüne güncellenecek. Ayarlarınız olduğu gibi kalır.")         \
+  X(SetupLineReinstall, L"Version %s is installed. Setup can install it again or remove it.",   \
+    L"%s sürümü kurulu. Kurulum onu yeniden kurabilir ya da kaldırabilir.")                     \
+  X(SetupLineDowngrade, L"Version %s is installed, and this setup contains the older %s.",      \
+    L"%s sürümü kurulu; bu kurulum daha eski olan %s sürümünü içeriyor.")                       \
+  X(SetupLocation, L"Install location", L"Kurulum konumu")                                      \
+  X(SetupAutostart, L"Start Opal when I sign in", L"Oturum açtığımda Opal'ı başlat")            \
+  X(SetupAutostartDesc, L"Opal waits in the tray, so Print Screen works right away.",           \
+    L"Opal sistem tepsisinde bekler, böylece Print Screen hemen çalışır.")                      \
+  X(SetupStartMenu, L"Add to the Start menu", L"Başlat menüsüne ekle")                          \
+  X(SetupDesktop, L"Add a desktop shortcut", L"Masaüstüne kısayol ekle")                        \
+  X(SetupPerUser, L"Installs for your account only. No administrator rights needed.",           \
+    L"Yalnızca sizin hesabınıza kurulur, yönetici izni gerekmez.")                              \
+  X(SetupInstall, L"Install", L"Kur")                                                           \
+  X(SetupUpdate, L"Update", L"Güncelle")                                                        \
+  X(SetupReinstall, L"Reinstall", L"Yeniden kur")                                               \
+  X(SetupUninstall, L"Uninstall", L"Kaldır")                                                    \
+  X(SetupWorkingInstall, L"Installing Opal", L"Opal kuruluyor")                                 \
+  X(SetupWorkingUpdate, L"Updating Opal", L"Opal güncelleniyor")                                \
+  X(SetupWorkingUninstall, L"Uninstalling Opal", L"Opal kaldırılıyor")                          \
+  X(SetupStepStopping, L"Closing the running Opal…", L"Çalışan Opal kapatılıyor…")              \
+  X(SetupStepCopying, L"Copying files…", L"Dosyalar kopyalanıyor…")                             \
+  X(SetupStepRegistering, L"Creating shortcuts…", L"Kısayollar oluşturuluyor…")                 \
+  X(SetupStepRemoving, L"Removing files…", L"Dosyalar siliniyor…")                              \
+  X(SetupDoneInstall, L"Opal is installed", L"Opal kuruldu")                                    \
+  X(SetupDoneUpdate, L"Opal is up to date", L"Opal güncellendi")                                \
+  X(SetupDoneLine, L"Press Print Screen to capture. Opal waits in the tray, next to the clock.", \
+    L"Yakalamak için Print Screen'e basın. Opal saatin yanındaki sistem tepsisinde bekler.")    \
+  X(SetupLaunch, L"Open Opal now", L"Opal'ı şimdi aç")                                          \
+  X(SetupFailed, L"Setup could not finish", L"Kurulum tamamlanamadı")                           \
+  X(SetupErrorRunning, L"Opal is still running and could not be closed. Quit it from the tray and try again.", \
+    L"Opal hâlâ çalışıyor ve kapatılamadı. Sistem tepsisinden çıkıp yeniden deneyin.")          \
+  X(SetupErrorFolder, L"The folder %s could not be created (error %lu).",                       \
+    L"%s klasörü oluşturulamadı (hata %lu).")                                                   \
+  X(SetupErrorCopy, L"Opal.exe could not be copied to %s (error %lu).",                         \
+    L"Opal.exe, %s konumuna kopyalanamadı (hata %lu).")                                         \
+  X(UninstallTitle, L"Uninstall Opal", L"Opal'ı kaldır")                                        \
+  X(UninstallLine, L"Opal %s will be removed from %s.", L"Opal %s, %s konumundan kaldırılacak.") \
+  X(UninstallUserData, L"Also remove settings and logs", L"Ayarları ve günlükleri de sil")      \
+  X(UninstallUserDataDesc, L"Captures in your Pictures folder are always kept.",               \
+    L"Resimler klasörünüzdeki yakalamalar her zaman korunur.")                                  \
+  X(UninstallDone, L"Opal was removed", L"Opal kaldırıldı")                                     \
+  X(UninstallDoneLine, L"Thanks for trying Opal.", L"Opal'ı denediğiniz için teşekkürler.")     \
+  X(UninstallMissing, L"Opal is not installed on this account.", L"Opal bu hesapta kurulu değil.") \
+  X(CheckForUpdates, L"Check for updates", L"Güncellemeleri denetle")                           \
+  X(CheckForUpdatesDesc, L"Looks for a new version on GitHub once a day and offers to install it.", \
+    L"Günde bir kez GitHub'da yeni sürüm arar ve kurmayı önerir.")                              \
+  X(Updates, L"Updates", L"Güncellemeler")                                                      \
+  X(UpdateIdle, L"Not checked yet", L"Henüz denetlenmedi")                                      \
+  X(UpdateChecking, L"Checking for updates…", L"Güncellemeler denetleniyor…")                   \
+  X(UpdateUpToDate, L"Opal is up to date", L"Opal güncel")                                      \
+  X(UpdateAvailable, L"Version %s is available", L"%s sürümü yayımlandı")                       \
+  X(UpdateDownloading, L"Downloading the update…", L"Güncelleme indiriliyor…")                  \
+  X(UpdateInstalling, L"Installing the update…", L"Güncelleme kuruluyor…")                      \
+  X(UpdateCheckFailed, L"Couldn't reach GitHub", L"GitHub'a ulaşılamadı")                       \
+  X(UpdateDownloadFailed, L"The update couldn't be downloaded", L"Güncelleme indirilemedi")     \
+  X(UpdateNow, L"Update now", L"Şimdi güncelle")                                                \
+  X(UpdateCheckNow, L"Check now", L"Şimdi denetle")                                             \
+  X(TrayUpdate, L"Update to %s", L"%s sürümüne güncelle")                                       \
+  X(TrayUpdating, L"Downloading update…", L"Güncelleme indiriliyor…")                           \
+  X(UpdateBalloonTitle, L"Opal %s is available", L"Opal %s yayımlandı")                         \
+  X(UpdateBalloonText, L"Choose “Update” in the tray menu or click here to install it.",       \
+    L"Kurmak için tepsi menüsünden “Güncelle”yi seçin ya da buraya tıklayın.")                  \
+  X(UpdateFailedBalloon, L"Opal couldn't download the update. It will try again later.",        \
+    L"Opal güncellemeyi indiremedi. Daha sonra yeniden deneyecek.")
 
 enum class S : int {
 #define OPAL_STR_ENUM(id, en, tr) id,

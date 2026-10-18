@@ -105,7 +105,7 @@ LRESULT ThumbnailWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp, bool& han
           hovered_ = inside;
           Invalidate();
         }
-        if (hovered_ || pressed_) shownAt_ = Now();
+        if (hovered_ || pressed_ || InModal()) shownAt_ = Now();
         if (!dismissing_ && Now() - shownAt_ > AppSettings().thumbnailSeconds) Dismiss();
         handled = true;
         return 0;
@@ -254,6 +254,7 @@ void ThumbnailWindow::StartFileDrag() {
     di.crColorKey = CLR_NONE;
     if (di.hbmpDragImage && FAILED(helper->InitializeFromBitmap(&di, data.Get()))) DeleteObject(di.hbmpDragImage);
   }
+  ModalScope modal(this);
   ShowWindow(hwnd(), SW_HIDE);
   DWORD effect = DROPEFFECT_NONE;
   const HRESULT hr = SHDoDragDrop(hwnd(), data.Get(), nullptr, DROPEFFECT_COPY, &effect);
@@ -297,6 +298,7 @@ void ThumbnailWindow::DeleteFile() {
 }
 
 void ThumbnailWindow::ShowMenu() {
+  ModalScope modal(this);
   sys::SetDarkMenus(Theme::Current().dark);
   HMENU m = CreatePopupMenu();
   AppendMenuW(m, MF_STRING, kMCopy, T(S::Copy));
