@@ -16,7 +16,7 @@
 namespace opal {
 namespace {
 
-constexpr float kW = 600.f, kH = 452.f;
+constexpr float kW = 600.f, kH = 472.f;
 constexpr float kHeader = 128.f;
 constexpr float kFooter = 68.f;
 constexpr float kCaption = 36.f;
@@ -325,7 +325,8 @@ void SetupWindow::PageOptions() {
   }
   const bool movable = kind_ == Kind::Fresh;
   const float pathW = kW - 2 * kMargin - 48.f - (movable ? 104.f : 0.f);
-  y = Card(y, {{T(S::SetupLocation), Ellipsize(ui_.p, options_.dir, 11.5f, pathW), movable ? 104.f : 0.f, 28.f,
+  y = Card(y, {{T(S::SetupLocation), Ellipsize(ui_.p, options_.dir, 11.5f, pathW) + L"\n" + SpaceText(),
+                movable ? 104.f : 0.f, 28.f,
                 movable ? std::function<void(const D2D1_RECT_F&)>([this](const D2D1_RECT_F& r) {
                   if (ui_.Button(MakeId("s.change"), r, T(S::Change))) AfterFrame([this] { PickFolder(); });
                 })
@@ -371,6 +372,24 @@ void SetupWindow::PageDone() {
 }
 
 void SetupWindow::PageFailed() {}
+
+const std::wstring& SetupWindow::SpaceText() {
+  if (spaceDir_ == options_.dir && !spaceText_.empty()) return spaceText_;
+  spaceDir_ = options_.dir;
+  const wchar_t point = CurrentLanguage() == Lang::Tr ? L',' : L'.';
+  const std::wstring needed = setup::FormatSize(setup::NeededBytes(), point);
+  wchar_t buf[256];
+  uint64_t free = 0;
+  if (setup::FreeBytes(options_.dir, &free)) {
+    const std::wstring drive = setup::DriveOf(options_.dir);
+    _swprintf_p(buf, ARRAYSIZE(buf), T(S::SetupSpace), needed.c_str(), setup::FormatSize(free, point).c_str(),
+                drive.empty() ? options_.dir.c_str() : drive.c_str());
+  } else {
+    swprintf_s(buf, T(S::SetupSpaceNeeded), needed.c_str());
+  }
+  spaceText_ = buf;
+  return spaceText_;
+}
 
 std::wstring SetupWindow::CaptureKey() const {
   const Settings& s = AppSettings();
@@ -418,11 +437,6 @@ void SetupWindow::DrawFooter() {
       clicked = it->action;
     }
     x -= 8.f;
-  }
-  if (page_ == Page::Options && kind_ == Kind::Fresh) {
-    const float nw = x - 24.f - 8.f;
-    p.Text(T(S::SetupPerUser), RX(24.f, top, nw, kFooter), 11.5f, t.textTertiary, FontWeight::Regular, HAlign::Left,
-           VAlign::Center, true);
   }
   if (ui_.in.KeyPressed(VK_RETURN)) clicked = 1;
   if (ui_.in.KeyPressed(VK_ESCAPE)) clicked = 2;
@@ -493,7 +507,7 @@ void SetupWindow::StartWork() {
     if (kind == Kind::Uninstall) {
       r->ok = setup::Uninstall(inst, removeData, progress);
     } else {
-      r->ok = setup::Install(options, progress, &r->error, &r->wasRunning);
+      r->ok = setup::Install(options, progress, &r->error, &r->wasRunning, h);
     }
     CoUninitialize();
     PostMessageW(h, kMsgFinished, 0, reinterpret_cast<LPARAM>(r));
@@ -558,7 +572,7 @@ int RunSetup(const std::wstring& args) {
     }
     std::wstring error;
     bool wasRunning = false;
-    if (!setup::Install(o, [](setup::Step) {}, &error, &wasRunning)) {
+    if (!setup::Install(o, [](setup::Step) {}, &error, &wasRunning, nullptr)) {
       Log(L"Setup failed: %s", error.c_str());
       return 1;
     }
@@ -569,9 +583,12 @@ int RunSetup(const std::wstring& args) {
 }
 
 int RunUninstall(const std::wstring& args) {
+  const setup::Installed inst = setup::FindInstalled();
+  if (inst.present && !setup::IsElevated() && !setup::CanWriteTo(inst.dir)) {
+    return int(setup::RunElevated(args, nullptr));
+  }
   LogInit(L"setup");
   LoadPreferences();
-  const setup::Installed inst = setup::FindInstalled();
   Log(L"Uninstall, installed: %s %s", inst.present ? inst.version.c_str() : L"none", inst.dir.c_str());
   if (setup::HasArg(args, L"--silent")) {
     if (!inst.present) return 1;

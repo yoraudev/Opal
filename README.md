@@ -11,7 +11,7 @@ It is a single `Opal.exe` of under 1 MB that waits in the tray, with an installe
 
 ## Install
 
-Download `Opal-Setup-<version>.exe` from the latest release and run it. Opal installs for your account only, without administrator rights, into `%LOCALAPPDATA%\Programs\Opal` or a folder you choose, adds itself to the Start menu and starts when you sign in; each of these can be switched off before installing. Opal then appears in Windows' installed apps, where it can be uninstalled.
+Download `Opal-Setup-<version>.exe` from the latest release and run it. Opal installs into `%LOCALAPPDATA%\Programs\Opal` or any folder you choose, adds itself to the Start menu and starts when you sign in; each of these can be switched off before installing. Next to the install location the setup shows how much space Opal needs and how much is free on that drive. A folder you can write to, like the default one, needs no administrator rights; for a folder that does, such as `C:\Program Files`, Windows asks for permission while the file is copied, and again when that copy is updated or uninstalled. The Start menu entry, the startup entry and the entry in installed apps always belong to your account. Opal then appears in Windows' installed apps, where it can be uninstalled.
 
 The installed Opal looks for a new release on GitHub once a day. When one is available, a notification appears and the tray menu gets an **Update to …** item; choosing it, clicking the notification or pressing **Update now** on the **About** page of the settings downloads the new setup and runs it without a window, which restarts Opal on the new version. The check can be turned off on the **General** page. Copies that run without installing never check.
 

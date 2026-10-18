@@ -257,6 +257,20 @@ TEST(PathsAndCommands) {
   CHECK(CommandExe(L"   ").empty());
 }
 
+TEST(SizesAndDrives) {
+  using namespace setup;
+  CHECK(FormatSize(100, L'.') == L"1 KB");
+  CHECK(FormatSize(872448, L'.') == L"852 KB");
+  CHECK(FormatSize(1120256, L',') == L"1,1 MB");
+  CHECK(FormatSize(250ull * 1024 * 1024, L'.') == L"250 MB");
+  CHECK(FormatSize(141733920768ull, L'.') == L"132 GB");
+  CHECK(FormatSize(5ull * 1024 * 1024 * 1024 * 1024 / 2, L'.') == L"2.5 TB");
+  CHECK(DriveOf(L"c:\\Program Files\\Opal") == L"C:");
+  CHECK(DriveOf(L"D:/") == L"D:");
+  CHECK(DriveOf(L"\\\\nas\\apps\\Opal") == L"\\\\nas\\apps");
+  CHECK(DriveOf(L"relative\\path").empty());
+}
+
 TEST(StartupApprovedState) {
   const uint8_t enabled[12] = {0x02};
   const uint8_t disabled[12] = {0x03};

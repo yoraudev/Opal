@@ -1,10 +1,12 @@
 #include "setup/Installer.h"
 
 #include <windows.h>
+#include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <wrl/client.h>
 
+#include <optional>
 #include <vector>
 
 #include "Version.h"
@@ -123,6 +125,35 @@ void WriteUninstallKey(const std::wstring& dir, const std::wstring& exe) {
   RegCloseKey(key);
 }
 
+std::wstring Quoted(const std::wstring& s) { return L"\"" + s + L"\""; }
+
+std::wstring NearestExisting(std::wstring dir) {
+  while (!dir.empty() && !Exists(dir)) {
+    const std::wstring parent = DirOf(dir);
+    if (parent == dir) break;
+    dir = parent;
+  }
+  return dir;
+}
+
+DWORD CopySelfTo(const std::wstring& dir) {
+  const int created = SHCreateDirectoryExW(nullptr, dir.c_str(), nullptr);
+  if (created != ERROR_SUCCESS && created != ERROR_ALREADY_EXISTS && created != ERROR_FILE_EXISTS) return DWORD(created);
+  const std::wstring self = sys::ExePath();
+  const std::wstring target = dir + L"\\" + kExeName;
+  const std::wstring old = target + L".old";
+  if (SamePath(self, target)) return ERROR_SUCCESS;
+  DeleteFileW(old.c_str());
+  const bool moved = Exists(target) && MoveFileExW(target.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING);
+  if (!CopyFileW(self.c_str(), target.c_str(), FALSE)) {
+    const DWORD err = GetLastError();
+    if (moved) MoveFileExW(old.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING);
+    return err;
+  }
+  DeleteFileW(old.c_str());
+  return ERROR_SUCCESS;
+}
+
 void RemoveUserData() {
   const std::wstring roaming = KnownFolder(FOLDERID_RoamingAppData) + L"\\Opal";
   const std::wstring local = KnownFolder(FOLDERID_LocalAppData) + L"\\Opal";
@@ -166,6 +197,65 @@ InstallOptions CurrentOptions(const Installed& installed) {
   return o;
 }
 
+bool IsElevated() {
+  HANDLE token = nullptr;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+  TOKEN_ELEVATION elevation{};
+  DWORD size = 0;
+  const bool ok = GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size) != FALSE;
+  CloseHandle(token);
+  return ok && elevation.TokenIsElevated;
+}
+
+bool CanWriteTo(const std::wstring& dir) {
+  const std::wstring probe = NearestExisting(dir) + L"\\.opal-" + std::to_wstring(GetCurrentProcessId()) + L".tmp";
+  HANDLE f = CreateFileW(probe.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+                         FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
+  if (f != INVALID_HANDLE_VALUE) {
+    CloseHandle(f);
+    return true;
+  }
+  return GetLastError() != ERROR_ACCESS_DENIED;
+}
+
+uint64_t NeededBytes() {
+  WIN32_FILE_ATTRIBUTE_DATA fa{};
+  if (!GetFileAttributesExW(sys::ExePath().c_str(), GetFileExInfoStandard, &fa)) return 0;
+  return (uint64_t(fa.nFileSizeHigh) << 32) | fa.nFileSizeLow;
+}
+
+bool FreeBytes(const std::wstring& dir, uint64_t* bytes) {
+  ULARGE_INTEGER available{};
+  if (!GetDiskFreeSpaceExW(NearestExisting(dir).c_str(), &available, nullptr, nullptr)) return false;
+  *bytes = available.QuadPart;
+  return true;
+}
+
+DWORD RunElevated(const std::wstring& args, HWND owner) {
+  const std::wstring self = sys::ExePath();
+  SHELLEXECUTEINFOW sei{sizeof(sei)};
+  sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
+  sei.hwnd = owner;
+  sei.lpVerb = L"runas";
+  sei.lpFile = self.c_str();
+  sei.lpParameters = args.c_str();
+  sei.nShow = SW_SHOWNORMAL;
+  if (!ShellExecuteExW(&sei)) return GetLastError();
+  DWORD code = ERROR_GEN_FAILURE;
+  if (sei.hProcess) {
+    WaitForSingleObject(sei.hProcess, INFINITE);
+    GetExitCodeProcess(sei.hProcess, &code);
+    CloseHandle(sei.hProcess);
+  }
+  return code;
+}
+
+int RunCopyHelper(const std::wstring& args) {
+  const std::optional<std::wstring> dir = ArgValue(args, L"--copy-to");
+  if (!dir || DriveOf(*dir).empty()) return int(ERROR_INVALID_PARAMETER);
+  return int(CopySelfTo(*dir));
+}
+
 void CleanUpAfterUpdate() { DeleteFileW((sys::ExePath() + L".old").c_str()); }
 
 bool StopRunningOpal(bool* wasRunning) {
@@ -196,7 +286,7 @@ bool StopRunningOpal(bool* wasRunning) {
 }
 
 bool Install(const InstallOptions& o, const std::function<void(Step)>& progress, std::wstring* error,
-             bool* wasRunning) {
+             bool* wasRunning, HWND owner) {
   wchar_t msg[1024];
   progress(Step::Stopping);
   if (!StopRunningOpal(wasRunning)) {
@@ -204,26 +294,22 @@ bool Install(const InstallOptions& o, const std::function<void(Step)>& progress,
     return false;
   }
   progress(Step::Copying);
-  if (!sys::EnsureDirectory(o.dir)) {
-    swprintf_s(msg, T(S::SetupErrorFolder), o.dir.c_str(), GetLastError());
+  DWORD err = CanWriteTo(o.dir) ? CopySelfTo(o.dir) : ERROR_ACCESS_DENIED;
+  if (err == ERROR_ACCESS_DENIED && !IsElevated()) {
+    Log(L"%s needs administrator rights, asking Windows", o.dir.c_str());
+    err = RunElevated(L"--copy-to " + Quoted(o.dir), owner);
+  }
+  if (err == ERROR_CANCELLED) {
+    swprintf_s(msg, T(S::SetupErrorDeclined), o.dir.c_str());
     *error = msg;
     return false;
   }
-  const std::wstring self = sys::ExePath();
-  const std::wstring target = o.dir + L"\\" + kExeName;
-  const std::wstring old = target + L".old";
-  if (!SamePath(self, target)) {
-    DeleteFileW(old.c_str());
-    const bool moved = Exists(target) && MoveFileExW(target.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING);
-    if (!CopyFileW(self.c_str(), target.c_str(), FALSE)) {
-      const DWORD err = GetLastError();
-      if (moved) MoveFileExW(old.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING);
-      swprintf_s(msg, T(S::SetupErrorCopy), o.dir.c_str(), err);
-      *error = msg;
-      return false;
-    }
-    DeleteFileW(old.c_str());
+  if (err != ERROR_SUCCESS) {
+    swprintf_s(msg, T(S::SetupErrorCopy), o.dir.c_str(), err);
+    *error = msg;
+    return false;
   }
+  const std::wstring target = o.dir + L"\\" + kExeName;
   progress(Step::Registering);
   WriteUninstallKey(o.dir, target);
   ApplyShortcut(StartMenuShortcut(), target, o.startMenu);

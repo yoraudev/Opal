@@ -12,6 +12,7 @@
 #include "core/Log.h"
 #include "render/Gpu.h"
 #include "setup/InstallRules.h"
+#include "setup/Installer.h"
 #include "setup/SetupWindow.h"
 
 namespace {
@@ -92,6 +93,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR cmdLine, int) {
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
   if (opal::setup::HasArg(args, L"--setup")) return WithOle([&] { return opal::RunSetup(args); });
+  if (opal::setup::HasArg(args, L"--copy-to")) return opal::setup::RunCopyHelper(args);
   if (opal::setup::HasArg(args, L"--uninstall")) return WithOle([&] { return opal::RunUninstall(args); });
 
   HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\Opal.SingleInstance.6c1f3a52");

@@ -15,5 +15,7 @@ std::wstring CommandExe(std::wstring_view command);
 bool StartupApproved(const uint8_t* data, size_t size);
 bool HasArg(std::wstring_view args, std::wstring_view name);
 std::optional<std::wstring> ArgValue(std::wstring_view args, std::wstring_view name);
+std::wstring FormatSize(uint64_t bytes, wchar_t decimalPoint);
+std::wstring DriveOf(std::wstring_view path);
 
 }
